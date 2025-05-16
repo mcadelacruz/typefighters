@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>type it paster</title>
+    <link href="https://fonts.googleapis.com/css?family=Fira+Mono:400,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+    /* function for the slide-fade-in animation */
+    #transition-blank {
+        position: fixed;
+        z-index: 9999;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        background: #000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s cubic-bezier(0.4,0,0.2,1);
+    }
+    #transition-blank.active {
+        opacity: 1;
+        pointer-events: all;
+    }
+    .slide-fade-in {
+        animation: slideFadeIn 1s cubic-bezier(0.4,0,0.2,1) forwards;
+    }
+    </style>
+</head>
+<body>
+    <div id="page-root">
+        <div class="center-root">
+            <div class="center-content">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+    <div id="transition-blank"></div>
+    {% block scripts %}{% endblock %}
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>

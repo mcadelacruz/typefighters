@@ -1,0 +1,37 @@
+<!-- this is the page for listing highscores, palakasan nalang -->
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <div class="menu-title">type it paster high scores</div>
+    <div style="width: 100%; max-width: 600px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>rank</th>
+                    <th>name</th>
+                    <th>score</th>
+                    <th>avg speed (ms)</th>
+                    <th>words</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in scores %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ score.name }}</td>
+                    <td>{{ score.score }}</td>
+                    <td>{{ "%.2f"|format(score.avg_speed) }}</td>
+                    <td>{{ score.words_typed }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center">no high scores yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <button class="menu-link" onclick="window.location.href='{{ url_for('index') }}'">back to menu</button>
+</div>
+{% endblock %}

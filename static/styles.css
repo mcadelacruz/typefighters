@@ -1,0 +1,209 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+body {
+    background: #000;
+    color: #fff;
+    font-family: 'Space Grotesk', 'Fira Mono', 'Consolas', 'Menlo', monospace;
+    min-height: 100vh;
+    margin: 0;
+    height: 100vh;
+    width: 100vw;
+    overflow-x: hidden;
+    font-weight: 300;
+    text-transform: lowercase;
+}
+
+/* animation for sliding in main content */
+@keyframes slideFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateX(-50px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* animation for fading out */
+@keyframes fadeOut {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+.center-root {
+    min-height: 100vh;
+    min-width: 100vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* main content animation class */
+.center-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* align children to the left */
+    justify-content: center;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    opacity: 0;
+    animation: slideFadeIn 1s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+
+.center-content.fade-out {
+    animation: fadeOut 0.5s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+
+.menu-title {
+    font-size: 2.5rem;
+    font-weight: 300;
+    margin-bottom: 2rem;
+    letter-spacing: -1px;
+    text-align: left;
+    color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    text-transform: lowercase;
+}
+
+.menu-link {
+    display: block;
+    color: #333;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    font-family: 'Space Grotesk', sans-serif;
+    margin: 1rem 0;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: none;
+    outline: none;
+    border-radius: 4px;
+    padding: 0.2rem 0.5rem;
+    transition: color 0.2s;
+    font-weight: 300;
+    text-transform: lowercase;
+}
+
+.menu-link,
+.menu-link:visited {
+    color: #fff;
+}
+
+.menu-link:hover,
+.menu-link:focus {
+    color: #333333;
+    background: none;
+    text-decoration: none;
+}
+
+.word-display {
+    font-size: 2.2rem;
+    font-weight: 300;
+    letter-spacing: 2px;
+    margin: 2rem 0 1.2rem 0;
+    user-select: none;
+    pointer-events: none;
+    text-align: left;
+    width: 350px;
+    min-height: 2.7em;
+    background: none;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    border: none;
+    font-family: 'Space Grotesk', sans-serif;
+    text-transform: lowercase;
+}
+
+.stats-row {
+    display: flex;
+    justify-content: flex-start;
+    gap: 2.5rem;
+    width: 100%;
+    margin-bottom: 1.2rem;
+    font-size: 1.1rem;
+    text-align: left;
+    color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 300;
+    text-transform: lowercase;
+}
+
+.final-stats {
+    margin-top: 1.5rem;
+    border-radius: 8px;
+    padding: 1.2rem 1rem;
+    width: 100%;
+    text-align: left;
+    background: none;
+    color: #fff;
+    font-weight: 300;
+    text-transform: lowercase;
+}
+
+a, .link-btn {
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    margin: 0.5rem 0;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: 'Space Grotesk', sans-serif;
+    text-align: left;
+    font-weight: 300;
+    text-transform: lowercase;
+}
+
+a:hover, .link-btn:hover {
+    color: #333333;
+    background: none;
+    text-decoration: none;
+}
+
+th, td {
+    border: none !important;
+    padding: 0.7rem 1rem !important;
+    text-align: left;
+    color: #fff;
+    background: none;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 300;
+    text-transform: lowercase;
+}
+
+input, .form-control {
+    background: #000;
+    color: #fff;
+    border: none;
+    border-bottom: 2px solid #fff;
+    border-radius: 0;
+    padding: 0.7rem 1rem;
+    font-size: 1.1rem;
+    font-family: 'Space Grotesk', sans-serif;
+    margin-bottom: 1.2rem;
+    outline: none;
+    text-align: left;
+    box-shadow: none;
+    width: 350px;
+    max-width: 90vw;
+    transition: border-bottom 0.2s;
+    font-weight: 300;
+    text-transform: lowercase;
+}
+
+input:focus, .form-control:focus {
+    border-bottom: 2px solid #fff;
+    background: #000;
+    color: #fff;
+    box-shadow: none;
+}
+
+::-webkit-input-placeholder { color: #aaa; }
+::-moz-placeholder { color: #aaa; }
+:-ms-input-placeholder { color: #aaa; }
+::placeholder { color: #aaa; }

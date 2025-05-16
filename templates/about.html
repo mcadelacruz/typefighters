@@ -1,0 +1,18 @@
+<!-- this is the about page -->
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <div class="menu-title">about type it paster</div>
+    <div style="max-width: 500px; text-align: left;">
+        <p>type it paster is a minimalist typing game. type words as fast and accurately as you can.</p>
+        <ul style="text-align: left; margin: 1.5rem auto; max-width: 350px;">
+            <li>type your name, then type <b>start</b> to begin.</li>
+            <li>type the word shown below as quickly as possible.</li>
+            <li>one mistake and the game ends!</li>
+            <li>try to get the highest score.</li>
+        </ul>
+        <button class="menu-link" onclick="window.location.href='{{ url_for('index') }}'">back to menu</button>
+    </div>
+</div>
+{% endblock %}

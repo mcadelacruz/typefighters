@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <div class="menu-title">type it paster</div>
+    <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}'">play</button>
+    <button class="menu-link" onclick="window.location.href='{{ url_for('about') }}'">about</button>
+    <button class="menu-link" onclick="window.location.href='{{ url_for('highscores') }}'">high scores</button>
+</div>
+{% endblock %}
