@@ -177,9 +177,7 @@ function updateTimer() {
     }
     if (t <= 0 && timerInterval) {
         clearInterval(timerInterval);
-        // --- FIX: Trigger game over when timer runs out ---
         if (sessionId) {
-            // Send a dummy word to trigger time up on backend
             fetch('/api/submit_word', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

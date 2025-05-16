@@ -169,7 +169,6 @@ def api_submit_word():
     elapsed_time = (datetime.utcnow() - session['start_time']).total_seconds()
     time_left = max(0, 120 - int(elapsed_time))
 
-    # --- FIX: Always check for time up before checking the word ---
     if elapsed_time >= 120:
         avg_speed = session['total_speed'] / session['total_attempts'] if session['total_attempts'] > 0 else 0
         result = {
@@ -182,8 +181,7 @@ def api_submit_word():
         save_high_score(session)
         active_sessions.pop(session_id, None)
         return jsonify(result)
-    # -------------------------------------------------------------
-
+    
     if user_input == current_word:
         session['total_attempts'] += 1
         session['total_speed'] += time_taken
