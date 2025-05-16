@@ -1,9 +1,10 @@
 // this file is for the game logic and steps
 
-let socket;
+let sessionId = null;
 let playerName = "";
 let timerInterval = null;
 let lastWordStart = null;
+let timeLeft = 120;
 
 function fadeStepOut(currentStep, cb) {
     // this fades out the current step
@@ -88,13 +89,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // this is for typing the word and pressing enter
         if (e.key === 'Enter') {
             const input = this.value.trim();
-            if (input) {
+            if (input && sessionId) {
                 // this shows how fast the last word was typed
                 if (lastWordStart) {
                     const speed = Date.now() - lastWordStart;
                     document.getElementById('last-speed').textContent = speed;
                 }
-                socket.send(JSON.stringify({ input: input }));
+                submitWord(input);
             }
             this.value = '';
         }
@@ -113,24 +114,47 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function startGame() {
-    // this starts the websocket and handles the game logic
-    socket = new WebSocket(`ws://${window.location.host}/game-socket`);
-    socket.onopen = function() {
-        socket.send(JSON.stringify({ name: playerName }));
-    };
-    socket.onmessage = function(event) {
-        const data = JSON.parse(event.data);
+    // Start a new game session via AJAX
+    fetch('/api/start_game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: playerName })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.session_id) {
+            sessionId = data.session_id;
+            document.getElementById('score').textContent = data.score;
+            document.getElementById('time-left').textContent = Math.floor(data.time_left);
+            document.getElementById('current-word').textContent = data.word;
+            document.getElementById('word-input').value = '';
+            document.getElementById('word-input').focus();
+            lastWordStart = Date.now();
+            timeLeft = 120;
+            document.getElementById('last-speed').textContent = '-';
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+    });
+}
+
+function submitWord(input) {
+    fetch('/api/submit_word', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, input: input })
+    })
+    .then(res => res.json())
+    .then(data => {
         if (data.action === 'new_word') {
-            // this shows the new word and updates score/time
             document.getElementById('current-word').textContent = data.word;
             document.getElementById('score').textContent = data.score;
             document.getElementById('time-left').textContent = Math.floor(data.time_left);
             document.getElementById('word-input').value = '';
             document.getElementById('word-input').focus();
             lastWordStart = Date.now();
-        }
-        else if (data.action === 'game_over') {
-            // this shows the game over screen
+            timeLeft = data.time_left;
+        } else if (data.action === 'game_over') {
             transitionStep('step-game', 'step-over', function() {
                 document.getElementById('game-over-reason').textContent = data.reason === 'time_up'
                     ? 'Time is up!' : 'You misspelled the word!';
@@ -140,13 +164,39 @@ function startGame() {
                 if (timerInterval) clearInterval(timerInterval);
             });
         }
-    };
-    document.getElementById('word-input').focus();
-    document.getElementById('last-speed').textContent = '-';
-    timerInterval = setInterval(function() {
-        // this updates the timer every second
-        const timeElement = document.getElementById('time-left');
-        let timeLeft = parseInt(timeElement.textContent);
-        if (timeLeft > 0) timeElement.textContent = timeLeft - 1;
-    }, 1000);
+    });
+}
+
+function updateTimer() {
+    const timeElement = document.getElementById('time-left');
+    let t = parseInt(timeElement.textContent);
+    if (t > 0) {
+        t -= 1;
+        timeElement.textContent = t;
+        timeLeft = t;
+    }
+    if (t <= 0 && timerInterval) {
+        clearInterval(timerInterval);
+        // --- FIX: Trigger game over when timer runs out ---
+        if (sessionId) {
+            // Send a dummy word to trigger time up on backend
+            fetch('/api/submit_word', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId, input: '' })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.action === 'game_over') {
+                    transitionStep('step-game', 'step-over', function() {
+                        document.getElementById('game-over-reason').textContent = data.reason === 'time_up'
+                            ? 'Time is up!' : 'You misspelled the word!';
+                        document.getElementById('final-score').textContent = data.score;
+                        document.getElementById('final-words').textContent = data.total_attempts;
+                        document.getElementById('final-speed').textContent = data.avg_speed.toFixed(2);
+                    });
+                }
+            });
+        }
+    }
 }

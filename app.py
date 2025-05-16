@@ -4,8 +4,7 @@ import time
 import json
 import uuid
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, jsonify
-from flask_sock import Sock
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session as flask_session
 from config import Config
 
 from models import db, HighScore  # this imports the database and highscore model
@@ -13,7 +12,6 @@ from models import db, HighScore  # this imports the database and highscore mode
 app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)  # this connects the database to the app
-sock = Sock(app)
 
 # this is the list of words for the typing game
 WORD_LIST = [
@@ -124,23 +122,14 @@ def highscores():
     scores = HighScore.query.order_by(HighScore.score.desc()).limit(10).all()
     return render_template('highscores.html', scores=scores)
 
-@sock.route('/game-socket')
-def game_socket(ws):
-    # this function handles the websocket for the game
-    data = ws.receive()
-    if not data:
-        return
-    try:
-        data = json.loads(data)
-    except Exception:
-        return
-    if 'name' not in data:
-        return
+@app.route('/api/start_game', methods=['POST'])
+def api_start_game():
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'Name required'}), 400
 
-    name = data['name']
-    session_id = str(uuid.uuid4())  # this makes a unique id for the session
-    
-    # this sets up the game session for the player
+    session_id = str(uuid.uuid4())
     active_sessions[session_id] = {
         'name': name,
         'score': 0,
@@ -150,96 +139,78 @@ def game_socket(ws):
         'current_word': None,
         'word_start_time': None
     }
-    
-    try:
-        # this sends the first word to the player
-        send_new_word(ws, session_id)
-        
-        while True:
-            data = ws.receive()
-            if not data:
-                break
-            try:
-                data = json.loads(data)
-            except Exception:
-                continue
-            if 'input' in data:
-                process_input(ws, session_id, data['input'])
-                
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-    finally:
-        # this removes the session and saves the score when the game ends
-        if session_id in active_sessions:
-            session = active_sessions.pop(session_id)
-            save_high_score(session)
 
-def send_new_word(ws, session_id):
-    # this picks a random word and sends it to the player
-    if session_id not in active_sessions:
-        return
-        
-    session = active_sessions[session_id]
     word = random.choice(WORD_LIST)
-    session['current_word'] = word
-    session['word_start_time'] = datetime.utcnow()
-    
-    ws.send(json.dumps({
-        'action': 'new_word',
+    active_sessions[session_id]['current_word'] = word
+    active_sessions[session_id]['word_start_time'] = datetime.utcnow()
+    return jsonify({
+        'session_id': session_id,
         'word': word,
-        'score': session['score'],
-        'time_left': 120 - (datetime.utcnow() - session['start_time']).total_seconds()
-    }))
+        'score': 0,
+        'time_left': 120
+    })
 
-def process_input(ws, session_id, user_input):
-    # this checks if the player's input is correct or not
-    if session_id not in active_sessions:
-        return
-        
+@app.route('/api/submit_word', methods=['POST'])
+def api_submit_word():
+    data = request.get_json()
+    session_id = data.get('session_id')
+    user_input = data.get('input', '')
+    if not session_id or session_id not in active_sessions:
+        return jsonify({'error': 'Invalid session'}), 400
+
     session = active_sessions[session_id]
     current_word = session['current_word']
     word_start_time = session['word_start_time']
-    
     if not current_word or not word_start_time:
-        return
-        
-    # this calculates how fast the player typed the word
-    time_taken = (datetime.utcnow() - word_start_time).total_seconds() * 1000  # in ms
-    
+        return jsonify({'error': 'No active word'}), 400
+
+    time_taken = (datetime.utcnow() - word_start_time).total_seconds() * 1000  # ms
+
+    elapsed_time = (datetime.utcnow() - session['start_time']).total_seconds()
+    time_left = max(0, 120 - int(elapsed_time))
+
+    # --- FIX: Always check for time up before checking the word ---
+    if elapsed_time >= 120:
+        avg_speed = session['total_speed'] / session['total_attempts'] if session['total_attempts'] > 0 else 0
+        result = {
+            'action': 'game_over',
+            'reason': 'time_up',
+            'score': session['score'],
+            'total_attempts': session['total_attempts'],
+            'avg_speed': avg_speed
+        }
+        save_high_score(session)
+        active_sessions.pop(session_id, None)
+        return jsonify(result)
+    # -------------------------------------------------------------
+
     if user_input == current_word:
-        # if the word is correct, update stats and score
         session['total_attempts'] += 1
         session['total_speed'] += time_taken
-        
-        # this calculates the score for the word
         score = calculate_greedy_score(current_word, time_taken)
         session['score'] += score
-        
-        # this checks if the time is up
-        elapsed_time = (datetime.utcnow() - session['start_time']).total_seconds()
-        if elapsed_time >= 120:
-            # if time is up, end the game
-            ws.send(json.dumps({
-                'action': 'game_over',
-                'reason': 'time_up',
-                'score': session['score'],
-                'total_attempts': session['total_attempts'],
-                'avg_speed': session['total_speed'] / session['total_attempts'] if session['total_attempts'] > 0 else 0
-            }))
-            return
-        
-        # if not, send a new word
-        send_new_word(ws, session_id)
+
+        word = random.choice(WORD_LIST)
+        session['current_word'] = word
+        session['word_start_time'] = datetime.utcnow()
+        return jsonify({
+            'action': 'new_word',
+            'word': word,
+            'score': session['score'],
+            'time_left': time_left
+        })
     else:
-        # if the word is wrong, end the game
         avg_speed = session['total_speed'] / session['total_attempts'] if session['total_attempts'] > 0 else 0
-        ws.send(json.dumps({
+        result = {
             'action': 'game_over',
             'reason': 'wrong_word',
             'score': session['score'],
             'total_attempts': session['total_attempts'],
             'avg_speed': avg_speed
-        }))
+        }
+        save_high_score(session)
+        active_sessions.pop(session_id, None)
+        return jsonify(result)
 
 def calculate_greedy_score(word, time_taken):
     # this function calculates the score based on word length and speed
