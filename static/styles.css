@@ -208,7 +208,6 @@ input:focus, .form-control:focus {
 :-ms-input-placeholder { color: #aaa; }
 ::placeholder { color: #aaa; }
 
-/* smaller font sizes for mobile devices */
 @media (max-width: 600px) {
     .menu-title {
         font-size: 1.5rem;
@@ -221,6 +220,8 @@ input:focus, .form-control:focus {
         font-size: 1.2rem;
         width: 95vw;
         min-height: 2em;
+        margin-left: 0.5rem;
+        margin-right: 0.5rem;
     }
     .stats-row {
         font-size: 0.95rem;
@@ -229,11 +230,15 @@ input:focus, .form-control:focus {
     .final-stats {
         font-size: 1rem;
         padding: 0.7rem 0.5rem;
+        margin-left: 0.5rem;
+        margin-right: 0.5rem;
     }
     input, .form-control {
         font-size: 1rem;
         width: 95vw;
         padding: 0.5rem 0.7rem;
+        margin-left: 0.5rem;
+        margin-right: 0.5rem;
     }
     th, td {
         font-size: 0.95rem;
@@ -244,5 +249,63 @@ input:focus, .form-control:focus {
     }
     .center-content {
         max-width: 98vw;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        margin-left: 2vw;
+        margin-right: 2vw;
+        align-items: center;
+        text-align: center;
+    }
+    .center-content > * {
+        margin-left: auto !important;
+        margin-right: auto !important;
+        text-align: center !important;
+        align-self: center !important;
+        display: block;
+    }
+    .menu-title,
+    .stats-row,
+    .final-stats,
+    .word-display,
+    table,
+    th, td,
+    input, .form-control,
+    a, .link-btn,
+    .mt-3,
+    #game-over-reason {
+        text-align: center !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        align-self: center !important;
+        display: block;
+    }
+    .word-display,
+    input, .form-control,
+    table {
+        width: 90vw;
+        max-width: 100%;
+    }
+    .stats-row {
+        justify-content: center;
+        gap: 1.2rem;
+        width: 100%;
+    }
+
+    .menu-link,
+    .word-display,
+    .mt-3 {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        text-align: center !important;
+    }
+
+    input, .form-control {
+        font-size: 1rem;
+        width: 70vw;
+        max-width: 300px;
+        padding: 0.5rem 0.7rem;
     }
 }
