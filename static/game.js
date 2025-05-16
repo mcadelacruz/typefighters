@@ -113,8 +113,49 @@ document.addEventListener('DOMContentLoaded', function() {
     showStep('name');
 });
 
+function adjustWordFontSize(word) {
+    const wordDisplay = document.getElementById('current-word');
+    if (!wordDisplay) return;
+
+    let fontSize;
+    if (window.innerWidth <= 600) {
+        // for mobile: shrink more aggressively for long words
+        if (word.length <= 12) fontSize = 22;
+        else if (word.length <= 18) fontSize = 18;
+        else if (word.length <= 28) fontSize = 14;
+        else if (word.length <= 40) fontSize = 11;
+        else fontSize = 9;
+    } else {
+        // for desktop: allow larger font sizes for longer words
+        if (word.length <= 12) fontSize = 36;
+        else if (word.length <= 18) fontSize = 30;
+        else if (word.length <= 28) fontSize = 24;
+        else if (word.length <= 40) fontSize = 18;
+        else fontSize = 14;
+    }
+    wordDisplay.style.fontSize = fontSize + 'px';
+}
+
+function typeText(element, text, speed = 40, cb) {
+    element.classList.add('typing-animate');
+    element.textContent = '';
+    let i = 0;
+    function typeChar() {
+        if (i < text.length) {
+            element.textContent = text.slice(0, i + 1);
+            i++;
+            setTimeout(typeChar, speed);
+        } else {
+            element.classList.remove('typing-animate');
+            element.textContent = text;
+            if (cb) cb();
+        }
+    }
+    typeChar();
+}
+
 function startGame() {
-    // Start a new game session via AJAX
+    // this starts the game
     fetch('/api/start_game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,6 +168,9 @@ function startGame() {
             document.getElementById('score').textContent = data.score;
             document.getElementById('time-left').textContent = Math.floor(data.time_left);
             document.getElementById('current-word').textContent = data.word;
+            typeText(document.getElementById('current-word'), data.word, 40, () => {
+                adjustWordFontSize(data.word);
+            });
             document.getElementById('word-input').value = '';
             document.getElementById('word-input').focus();
             lastWordStart = Date.now();
@@ -147,7 +191,9 @@ function submitWord(input) {
     .then(res => res.json())
     .then(data => {
         if (data.action === 'new_word') {
-            document.getElementById('current-word').textContent = data.word;
+            typeText(document.getElementById('current-word'), data.word, 40, () => {
+                adjustWordFontSize(data.word);
+            });
             document.getElementById('score').textContent = data.score;
             document.getElementById('time-left').textContent = Math.floor(data.time_left);
             document.getElementById('word-input').value = '';

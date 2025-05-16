@@ -116,6 +116,16 @@ body {
     border: none;
     font-family: 'Space Grotesk', sans-serif;
     text-transform: lowercase;
+    transition: font-size 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+
+.word-display.typing-animate {
+    white-space: pre;
+}
+
+@keyframes caret-blink {
+    0%, 100% { border-color: #fff; }
+    50% { border-color: transparent; }
 }
 
 .stats-row {
@@ -226,6 +236,7 @@ input:focus, .form-control:focus {
     }
     .word-display {
         width: 95vw;
+        font-size: 1.5rem;
         min-height: 2em;
         margin-left: 0.5rem;
         margin-right: 0.5rem;
@@ -309,5 +320,10 @@ input:focus, .form-control:focus {
         width: 70vw;
         max-width: 300px;
         padding: 0.5rem 0.7rem;
+    }
+
+    th, td {
+        font-size: 0.75rem !important;
+        padding: 0.4rem 0.5rem !important;
     }
 }
