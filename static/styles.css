@@ -217,7 +217,6 @@ input:focus, .form-control:focus {
         font-size: 1.1rem;
     }
     .word-display {
-        font-size: 1.2rem;
         width: 95vw;
         min-height: 2em;
         margin-left: 0.5rem;
