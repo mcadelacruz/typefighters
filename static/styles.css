@@ -208,6 +208,14 @@ input:focus, .form-control:focus {
 :-ms-input-placeholder { color: #aaa; }
 ::placeholder { color: #aaa; }
 
+.responsive-table {
+    width: 100%;}
+
+.responsive-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
 @media (max-width: 600px) {
     .menu-title {
         font-size: 1.5rem;
@@ -239,10 +247,6 @@ input:focus, .form-control:focus {
         margin-left: 0.5rem;
         margin-right: 0.5rem;
     }
-    th, td {
-        font-size: 0.95rem;
-        padding: 0.4rem 0.5rem !important;
-    }
     a, .link-btn {
         font-size: 1rem;
     }
@@ -262,12 +266,11 @@ input:focus, .form-control:focus {
         align-self: center !important;
         display: block;
     }
+
     .menu-title,
     .stats-row,
     .final-stats,
     .word-display,
-    table,
-    th, td,
     input, .form-control,
     a, .link-btn,
     .mt-3,
@@ -279,11 +282,11 @@ input:focus, .form-control:focus {
         display: block;
     }
     .word-display,
-    input, .form-control,
-    table {
+    input, .form-control, {
         width: 90vw;
         max-width: 100%;
     }
+
     .stats-row {
         justify-content: center;
         gap: 1.2rem;
