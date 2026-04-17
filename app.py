@@ -3,11 +3,13 @@ import random
 import time
 import json
 import uuid
+import csv
+import io
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session as flask_session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session as flask_session, Response, stream_with_context
 from config import Config
 
-from models import db, HighScore  # this imports the database and highscore model
+from models import db, HighScore, TelemetryData  # this imports the database and models
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -131,6 +133,7 @@ def highscores():
 def api_start_game():
     data = request.get_json(silent=True) or {}
     name = data.get('name', '').strip()
+    game_mode = data.get('game_mode', 'Classic').strip() or 'Classic'
 
     if not name:
         name = flask_session.get('player_name', '').strip()
@@ -143,6 +146,7 @@ def api_start_game():
     session_id = str(uuid.uuid4())
     active_sessions[session_id] = {
         'name': name,
+        'game_mode': game_mode,
         'score': 0,
         'total_attempts': 0,
         'total_speed': 0,
@@ -160,6 +164,20 @@ def api_start_game():
         'score': 0,
         'time_left': 120
     })
+
+
+def _safe_float(value, field_name):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'Invalid value for {field_name}')
+
+
+def _safe_int(value, field_name):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'Invalid value for {field_name}')
 
 @app.route('/api/submit_word', methods=['POST'])
 def api_submit_word():
@@ -192,6 +210,135 @@ def api_submit_word():
         save_high_score(session)
         active_sessions.pop(session_id, None)
         return jsonify(result)
+
+
+@app.route('/api/save_telemetry', methods=['POST'])
+def api_save_telemetry():
+    data = request.get_json(silent=True) or {}
+
+    required_fields = [
+        'player_name',
+        'game_mode',
+        'score',
+        'avg_dwell_time',
+        'avg_flight_time',
+        'flight_time_variance',
+        'error_correction_rate',
+        'typing_speed_wpm',
+        'pause_frequency',
+        'session_length',
+        'total_keystrokes'
+    ]
+
+    missing = [field for field in required_fields if field not in data]
+    if missing:
+        return jsonify({'error': f"Missing fields: {', '.join(missing)}"}), 400
+
+    player_name = str(data.get('player_name', '')).strip()
+    game_mode = str(data.get('game_mode', '')).strip()
+
+    if not player_name or not game_mode:
+        return jsonify({'error': 'player_name and game_mode are required'}), 400
+
+    try:
+        score = _safe_int(data.get('score'), 'score')
+        avg_dwell_time = _safe_float(data.get('avg_dwell_time'), 'avg_dwell_time')
+        avg_flight_time = _safe_float(data.get('avg_flight_time'), 'avg_flight_time')
+        flight_time_variance = _safe_float(data.get('flight_time_variance'), 'flight_time_variance')
+        error_correction_rate = _safe_float(data.get('error_correction_rate'), 'error_correction_rate')
+        typing_speed_wpm = _safe_float(data.get('typing_speed_wpm'), 'typing_speed_wpm')
+        pause_frequency = _safe_int(data.get('pause_frequency'), 'pause_frequency')
+        session_length = _safe_float(data.get('session_length'), 'session_length')
+        total_keystrokes = _safe_int(data.get('total_keystrokes'), 'total_keystrokes')
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    telemetry_row = TelemetryData(
+        player_name=player_name,
+        game_mode=game_mode,
+        score=score,
+        avg_dwell_time=avg_dwell_time,
+        avg_flight_time=avg_flight_time,
+        flight_time_variance=flight_time_variance,
+        error_correction_rate=error_correction_rate,
+        typing_speed_wpm=typing_speed_wpm,
+        pause_frequency=pause_frequency,
+        session_length=session_length,
+        total_keystrokes=total_keystrokes
+    )
+
+    # Keep HighScore in sync per mode while telemetry is collected for ML training.
+    high_score = HighScore(
+        name=player_name,
+        game_mode=game_mode,
+        score=score,
+        avg_speed=typing_speed_wpm,
+        words_typed=max(0, int(round(total_keystrokes / 5.0)))
+    )
+
+    db.session.add(telemetry_row)
+    db.session.add(high_score)
+    db.session.commit()
+
+    return jsonify({'message': 'Telemetry saved', 'id': telemetry_row.id}), 201
+
+
+@app.route('/admin/export_data', methods=['GET'])
+def admin_export_data():
+    # Basic health check that the query executes before starting a streamed response.
+    try:
+        TelemetryData.query.limit(1).all()
+    except Exception as exc:
+        return jsonify({'error': f'Unable to export telemetry data: {exc}'}), 500
+
+    def generate_csv():
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+
+        writer.writerow([
+            'id',
+            'player_name',
+            'game_mode',
+            'score',
+            'avg_dwell_time',
+            'avg_flight_time',
+            'flight_time_variance',
+            'error_correction_rate',
+            'typing_speed_wpm',
+            'pause_frequency',
+            'session_length',
+            'total_keystrokes',
+            'created_at'
+        ])
+        yield buffer.getvalue()
+        buffer.seek(0)
+        buffer.truncate(0)
+
+        for row in TelemetryData.query.order_by(TelemetryData.id.asc()).yield_per(200):
+            writer.writerow([
+                row.id,
+                row.player_name,
+                row.game_mode,
+                row.score,
+                row.avg_dwell_time,
+                row.avg_flight_time,
+                row.flight_time_variance,
+                row.error_correction_rate,
+                row.typing_speed_wpm,
+                row.pause_frequency,
+                row.session_length,
+                row.total_keystrokes,
+                row.created_at.isoformat() if row.created_at else ''
+            ])
+            yield buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+
+    return Response(
+        stream_with_context(generate_csv()),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=telemetry_data.csv'}
+    )
     
     if user_input == current_word:
         session['total_attempts'] += 1
@@ -239,6 +386,7 @@ def save_high_score(session):
     avg_speed = session['total_speed'] / session['total_attempts']
     high_score = HighScore(
         name=session['name'],
+        game_mode=session.get('game_mode', 'Classic'),
         score=session['score'],
         avg_speed=avg_speed,
         words_typed=session['total_attempts']
