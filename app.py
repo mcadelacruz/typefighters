@@ -103,8 +103,13 @@ active_sessions = {}
 
 @app.route('/')
 def index():
-    # this shows the main menu page
+    # this shows the loading screen page
     return render_template('index.html')
+
+@app.route('/menu')
+def menu():
+    # this shows the main menu page
+    return render_template('menu.html')
 
 @app.route('/play', methods=['GET'])
 def play():
@@ -124,10 +129,16 @@ def highscores():
 
 @app.route('/api/start_game', methods=['POST'])
 def api_start_game():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     name = data.get('name', '').strip()
+
+    if not name:
+        name = flask_session.get('player_name', '').strip()
+
     if not name:
         return jsonify({'error': 'Name required'}), 400
+
+    flask_session['player_name'] = name
 
     session_id = str(uuid.uuid4())
     active_sessions[session_id] = {

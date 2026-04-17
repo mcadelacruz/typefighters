@@ -13,6 +13,142 @@ body {
     text-transform: lowercase;
 }
 
+#boot-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 1s;
+}
+
+body.home-page.home-loader-active #boot-loader {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: all;
+    transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0s;
+}
+
+body.home-page.home-loader-exiting #boot-loader {
+    opacity: 0;
+    visibility: visible;
+    pointer-events: none;
+    transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 1s;
+}
+
+body.home-page.home-loader-active #page-root {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+body.home-page.home-loader-exiting #page-root {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+body.home-page.home-loader-ready #page-root {
+    visibility: visible;
+    opacity: 1;
+    animation: homeMenuFadeIn 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.boot-loader-inner {
+    width: min(420px, 84vw);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.35rem;
+}
+
+.boot-logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    color: #fff;
+    line-height: 1;
+    opacity: 0;
+    transform: translateY(12px);
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0;
+    text-align: left;
+}
+
+.boot-prefix {
+    white-space: pre;
+    line-height: 1;
+}
+
+.boot-word-slot {
+    position: relative;
+    display: inline-block;
+    min-width: 8ch;
+    height: 1.15em;
+    overflow: hidden;
+    text-align: left;
+    line-height: 1.1;
+}
+
+.boot-word-old,
+.boot-word-new {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    white-space: nowrap;
+}
+
+.boot-word-old {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.boot-word-new {
+    opacity: 0;
+    transform: translateY(-0.95em);
+}
+
+.boot-progress-track {
+    width: 100%;
+    height: 1px;
+    border-radius: 0;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.boot-progress-fill {
+    width: 0;
+    height: 100%;
+    border-radius: 0;
+    background: #fff;
+}
+
+#boot-loader.animate .boot-logo {
+    animation: bootLogoIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#boot-loader.animate .boot-progress-fill {
+    animation: bootProgressFill 3s linear forwards;
+}
+
+#boot-loader.animate .boot-word-old {
+    animation: bootWordOldDrop 0.52s cubic-bezier(0.4, 0, 0.2, 1) 2.05s forwards;
+}
+
+#boot-loader.animate .boot-word-new {
+    animation: bootWordNewDrop 0.52s cubic-bezier(0.22, 1, 0.36, 1) 2.05s forwards;
+}
+
 /* animation for sliding in main content */
 @keyframes slideFadeIn {
     0% {
@@ -29,6 +165,66 @@ body {
 @keyframes fadeOut {
     0% { opacity: 1; }
     100% { opacity: 0; }
+}
+
+@keyframes bootLogoIn {
+    0% {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes bootProgressFill {
+    0% { width: 0; }
+    100% { width: 100%; }
+}
+
+@keyframes bootWordOldDrop {
+    0% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(0.7em);
+    }
+}
+
+@keyframes bootWordNewDrop {
+    0% {
+        opacity: 0;
+        transform: translateY(-0.7em);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes homeMenuFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes playerNameIn {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(12px);
+    }
+    100% {
+        opacity: 0.85;
+        transform: translateX(-50%) translateY(0);
+    }
 }
 
 .center-root {
@@ -173,6 +369,30 @@ a:hover, .link-btn:hover {
     color: #333333;
     background: none;
     text-decoration: none;
+}
+
+#main-player-name-link.player-name-link {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: clamp(26px, 4.5vh, 44px);
+    margin: 0;
+    padding: 0.2rem 0.6rem;
+    font-size: 1rem;
+    color: #fff;
+    opacity: 0.85;
+    transition: opacity 0.2s, color 0.2s;
+    z-index: 20;
+}
+
+#main-player-name-link.player-name-link.player-name-entrance {
+    animation: playerNameIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+#main-player-name-link.player-name-link:hover,
+#main-player-name-link.player-name-link:focus {
+    opacity: 1;
+    color: #fff;
 }
 
 th, td {
@@ -325,5 +545,10 @@ input:focus, .form-control:focus {
     th, td {
         font-size: 0.75rem !important;
         padding: 0.4rem 0.5rem !important;
+    }
+
+    #main-player-name-link.player-name-link {
+        bottom: 20px;
+        font-size: 0.95rem;
     }
 }

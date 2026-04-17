@@ -5,6 +5,24 @@ let playerName = "";
 let timerInterval = null;
 let lastWordStart = null;
 let timeLeft = 120;
+let returnToMenuAfterNameSave = false;
+const PLAYER_NAME_STORAGE_KEY = "typefighters_player_name";
+
+function getStoredPlayerName() {
+    try {
+        return (localStorage.getItem(PLAYER_NAME_STORAGE_KEY) || "").trim();
+    } catch (e) {
+        return "";
+    }
+}
+
+function saveStoredPlayerName(name) {
+    try {
+        localStorage.setItem(PLAYER_NAME_STORAGE_KEY, name);
+    } catch (e) {
+        // if storage is blocked, gameplay still works for this session
+    }
+}
 
 function fadeStepOut(currentStep, cb) {
     // this fades out the current step
@@ -67,6 +85,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const name = document.getElementById('player-name-input').value.trim();
         if (name.length > 0) {
             playerName = name;
+            saveStoredPlayerName(name);
+            if (returnToMenuAfterNameSave) {
+                if (typeof window.showTransitionBlank === 'function') {
+                    window.showTransitionBlank(() => {
+                        window.location.href = '/menu';
+                    }, 300);
+                } else {
+                    window.location.href = '/menu';
+                }
+                return;
+            }
             transitionStep('step-name', 'step-start', function() {
                 document.getElementById('start-input').focus();
             });
@@ -109,8 +138,25 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.id === 'current-word') e.preventDefault();
     });
 
-    // this shows the first step when the page loads
-    showStep('name');
+    const searchParams = new URLSearchParams(window.location.search);
+    const forceNameStep = searchParams.get('change_name') === '1';
+    returnToMenuAfterNameSave = forceNameStep;
+
+    // if we already know the player, skip asking for the name again unless user chose to change it
+    const storedName = getStoredPlayerName();
+    if (storedName && !forceNameStep) {
+        playerName = storedName;
+        showStep('start');
+        document.getElementById('start-input').focus();
+    } else {
+        showStep('name');
+        const nameInput = document.getElementById('player-name-input');
+        if (storedName) {
+            nameInput.value = storedName;
+            nameInput.select();
+        }
+        nameInput.focus();
+    }
 });
 
 function adjustWordFontSize(word) {

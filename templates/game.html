@@ -29,8 +29,9 @@
             <div>words typed: <span id="final-words"></span></div>
             <div>average speed: <span id="final-speed"></span> ms</div>
         </div>
+        <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}'">play again</button>
         <button class="menu-link" onclick="window.location.href='{{ url_for('highscores') }}'">high scores</button>
-        <button class="menu-link" onclick="window.location.href='{{ url_for('index') }}'">menu</button>
+        <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">menu</button>
     </div>
 </div>
 {% endblock %}

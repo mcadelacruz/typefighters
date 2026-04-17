@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>type it paster</title>
+    <title>typefighters</title>
     <link href="https://fonts.googleapis.com/css?family=Fira+Mono:400,700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
@@ -27,13 +27,28 @@
     }
     </style>
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
+    <div id="boot-loader" aria-hidden="true">
+        <div class="boot-loader-inner">
+            <div class="boot-logo" aria-label="typefighters loading animation">
+                <span class="boot-prefix">type </span>
+                <span class="boot-word-slot">
+                    <span class="boot-word-old">it paster</span>
+                    <span class="boot-word-new">fighters</span>
+                </span>
+            </div>
+            <div class="boot-progress-track">
+                <div class="boot-progress-fill"></div>
+            </div>
+        </div>
+    </div>
     <div id="page-root">
         <div class="center-root">
             <div class="center-content">
                 {% block content %}{% endblock %}
             </div>
         </div>
+        {% block floating %}{% endblock %}
     </div>
     <div id="transition-blank"></div>
     {% block scripts %}{% endblock %}

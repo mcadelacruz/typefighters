@@ -3,7 +3,7 @@
 
 {% block content %}
 <div>
-    <div class="menu-title">type it paster high scores</div>
+    <div class="menu-title">typefighters high scores</div>
     <div style="width: 100%; max-width: 600px;">
         <!-- Only the top 10 highest scores, descending order -->
         <table>
@@ -33,6 +33,6 @@
             </tbody>
         </table>
     </div>
-    <button class="menu-link" onclick="window.location.href='{{ url_for('index') }}'">back to menu</button>
+    <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">back to menu</button>
 </div>
 {% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <div class="menu-title">typefighters</div>
+    <a class="menu-link" href="{{ url_for('play') }}">play</a>
+    <a class="menu-link" href="{{ url_for('about') }}">about</a>
+    <a class="menu-link" href="{{ url_for('highscores') }}">high scores</a>
+</div>
+{% endblock %}
+
+{% block floating %}
+<a id="main-player-name-link" class="player-name-link" href="{{ url_for('play') }}?change_name=1">set player name</a>
+{% endblock %}
