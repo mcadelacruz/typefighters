@@ -2,7 +2,17 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div id="game-box" style="width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+{% set selected_mode = (request.args.get('mode', 'classic') | lower) %}
+{% set mode_title_map = {
+    'classic': 'classic',
+    'meltdown': 'meltdown',
+    'flow-state': 'flow state',
+    'interference': 'interference',
+    'overload': 'overload'
+} %}
+{% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
+<div id="game-box" class="game-mode-{{ selected_mode }}" data-game-mode="{{ selected_mode }}" style="width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    <div class="game-mode-banner mb-3">mode: <span id="current-mode-label">{{ mode_title }}</span></div>
     <div id="step-name" style="display:flex;flex-direction:column;align-items:flex-start;width:100%;">
         <div class="menu-title mb-4">enter your name</div>
         <input type="text" id="player-name-input" maxlength="32" placeholder="your name" autofocus>
@@ -25,11 +35,13 @@
         <div class="menu-title mb-4">game over</span></div>
         <div id="game-over-reason" class="mb-3"></div>
         <div class="final-stats">
+            <div>mode: <span id="final-mode">{{ mode_title }}</span></div>
             <div>final score: <span id="final-score"></span></div>
-            <div>words typed: <span id="final-words"></span></div>
-            <div>average speed: <span id="final-speed"></span> ms</div>
+            <div><span id="final-stat-1-label">words typed</span>: <span id="final-stat-1-value"></span></div>
+            <div><span id="final-stat-2-label">average speed</span>: <span id="final-stat-2-value"></span></div>
+            <div><span id="final-stat-3-label">result</span>: <span id="final-stat-3-value"></span></div>
         </div>
-        <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}'">play again</button>
+        <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}?mode={{ selected_mode }}'">play again</button>
         <button class="menu-link" onclick="window.location.href='{{ url_for('highscores') }}'">high scores</button>
         <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">menu</button>
     </div>
@@ -37,5 +49,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='telemetry.js') }}"></script>
 <script src="{{ url_for('static', filename='game.js') }}"></script>
 {% endblock %}

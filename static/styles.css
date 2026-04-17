@@ -93,10 +93,10 @@ body.home-page.home-loader-ready #page-root {
     position: relative;
     display: inline-block;
     min-width: 8ch;
-    height: 1.15em;
+    height: 1.2em;
     overflow: hidden;
     text-align: left;
-    line-height: 1.1;
+    line-height: 1;
 }
 
 .boot-word-old,
@@ -106,6 +106,7 @@ body.home-page.home-loader-ready #page-root {
     top: 0;
     display: block;
     white-space: nowrap;
+    line-height: 1;
 }
 
 .boot-word-old {
@@ -115,7 +116,7 @@ body.home-page.home-loader-ready #page-root {
 
 .boot-word-new {
     opacity: 0;
-    transform: translateY(-0.95em);
+    transform: translateY(-0.7em);
 }
 
 .boot-progress-track {
@@ -142,11 +143,11 @@ body.home-page.home-loader-ready #page-root {
 }
 
 #boot-loader.animate .boot-word-old {
-    animation: bootWordOldDrop 0.52s cubic-bezier(0.4, 0, 0.2, 1) 2.05s forwards;
+    animation: bootWordOldDrop 0.52s cubic-bezier(0.4, 0, 0.2, 1) 1.35s forwards;
 }
 
 #boot-loader.animate .boot-word-new {
-    animation: bootWordNewDrop 0.52s cubic-bezier(0.22, 1, 0.36, 1) 2.05s forwards;
+    animation: bootWordNewDrop 0.52s cubic-bezier(0.22, 1, 0.36, 1) 1.35s forwards;
 }
 
 /* animation for sliding in main content */
@@ -292,6 +293,88 @@ body.home-page.home-loader-ready #page-root {
     color: #333333;
     background: none;
     text-decoration: none;
+}
+
+.mode-toggle {
+    padding-left: 0.5rem;
+}
+
+.mode-submenu {
+    margin: 0.35rem 0 1.1rem 0.9rem;
+    padding-left: 0.9rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.45);
+    animation: submenuIn 0.22s ease-out;
+}
+
+.mode-submenu-title {
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: lowercase;
+    opacity: 0.7;
+    margin-bottom: 0.55rem;
+}
+
+.mode-link {
+    margin: 0.42rem 0;
+    font-size: 1.15rem;
+    opacity: 0.9;
+}
+
+.game-mode-banner {
+    align-self: flex-start;
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+    opacity: 0.82;
+    border-left: 2px solid rgba(255, 255, 255, 0.65);
+    padding-left: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+
+#game-box {
+    transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+#game-box.game-mode-classic .game-mode-banner {
+    border-left-color: rgba(255, 255, 255, 0.8);
+}
+
+#game-box.game-mode-meltdown .game-mode-banner,
+#game-box.game-mode-meltdown .word-display {
+    color: #ff9e9e;
+    text-shadow: 0 0 16px rgba(255, 70, 70, 0.25);
+    border-left-color: rgba(255, 70, 70, 0.9);
+}
+
+#game-box.game-mode-flow-state .game-mode-banner,
+#game-box.game-mode-flow-state .word-display {
+    color: #97f5df;
+    text-shadow: 0 0 16px rgba(110, 255, 212, 0.2);
+    border-left-color: rgba(110, 255, 212, 0.88);
+}
+
+#game-box.game-mode-interference .game-mode-banner,
+#game-box.game-mode-interference .word-display {
+    color: #ffe39a;
+    text-shadow: 0 0 16px rgba(255, 196, 80, 0.2);
+    border-left-color: rgba(255, 196, 80, 0.9);
+}
+
+#game-box.game-mode-overload .game-mode-banner,
+#game-box.game-mode-overload .word-display {
+    color: #a8c8ff;
+    text-shadow: 0 0 16px rgba(80, 150, 255, 0.24);
+    border-left-color: rgba(80, 150, 255, 0.92);
+}
+
+@keyframes submenuIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .word-display {
@@ -513,7 +596,7 @@ input:focus, .form-control:focus {
         display: block;
     }
     .word-display,
-    input, .form-control, {
+    input, .form-control {
         width: 90vw;
         max-width: 100%;
     }
@@ -533,6 +616,23 @@ input:focus, .form-control:focus {
         margin-left: auto !important;
         margin-right: auto !important;
         text-align: center !important;
+    }
+
+    .game-mode-banner {
+        align-self: center;
+        text-align: center;
+        border-left: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+        padding-left: 0;
+        padding-bottom: 0.25rem;
+    }
+
+    .mode-submenu {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: none;
+        width: 100%;
+        text-align: center;
     }
 
     input, .form-control {

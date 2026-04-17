@@ -6,7 +6,27 @@ let timerInterval = null;
 let lastWordStart = null;
 let timeLeft = 120;
 let returnToMenuAfterNameSave = false;
+let currentMode = "classic";
+let currentModeLabel = "Classic";
+let gameEnded = false;
+let overloadKeystrokes = 0;
+const OVERLOAD_TARGET = 1000;
 const PLAYER_NAME_STORAGE_KEY = "typefighters_player_name";
+
+function resolveMode(rawMode) {
+    const mode = (rawMode || "classic").toLowerCase();
+    if (mode === "overload") return "overload";
+    return "classic";
+}
+
+function modeLabel(mode) {
+    if (mode === "overload") return "Overload";
+    return "Classic";
+}
+
+function isOverloadMode() {
+    return currentMode === "overload";
+}
 
 function getStoredPlayerName() {
     try {
@@ -80,6 +100,13 @@ function transitionStep(fromId, toId, afterInCallback) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    const searchParams = new URLSearchParams(window.location.search);
+    currentMode = resolveMode(searchParams.get('mode'));
+    currentModeLabel = modeLabel(currentMode);
+
+    const modeLabelEl = document.getElementById('current-mode-label');
+    if (modeLabelEl) modeLabelEl.textContent = currentModeLabel.toLowerCase();
+
     // this is for the name step
     document.getElementById('name-next-btn').onclick = function() {
         const name = document.getElementById('player-name-input').value.trim();
@@ -115,11 +142,15 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('word-input').addEventListener('keydown', function(e) {
-        // this is for typing the word and pressing enter
+        if (isOverloadMode()) {
+            handleOverloadKeydown(e);
+            return;
+        }
+
+        // classic mode: submit on enter
         if (e.key === 'Enter') {
             const input = this.value.trim();
             if (input && sessionId) {
-                // this shows how fast the last word was typed
                 if (lastWordStart) {
                     const speed = Date.now() - lastWordStart;
                     document.getElementById('last-speed').textContent = speed;
@@ -138,7 +169,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.id === 'current-word') e.preventDefault();
     });
 
-    const searchParams = new URLSearchParams(window.location.search);
     const forceNameStep = searchParams.get('change_name') === '1';
     returnToMenuAfterNameSave = forceNameStep;
 
@@ -200,35 +230,171 @@ function typeText(element, text, speed = 40, cb) {
     typeChar();
 }
 
-function startGame() {
-    // this starts the game
-    fetch('/api/start_game', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: playerName })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.session_id) {
-            sessionId = data.session_id;
-            document.getElementById('score').textContent = data.score;
-            document.getElementById('time-left').textContent = Math.floor(data.time_left);
-            document.getElementById('current-word').textContent = data.word;
-            typeText(document.getElementById('current-word'), data.word, 40, () => {
-                adjustWordFontSize(data.word);
-            });
-            document.getElementById('word-input').value = '';
-            document.getElementById('word-input').focus();
-            lastWordStart = Date.now();
-            timeLeft = 120;
-            document.getElementById('last-speed').textContent = '-';
-            if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(updateTimer, 1000);
+function setOverloadProgress() {
+    const scoreElement = document.getElementById('score');
+    const wordDisplay = document.getElementById('current-word');
+    const speedElement = document.getElementById('last-speed');
+
+    if (!scoreElement || !wordDisplay || !speedElement) return;
+
+    const pct = Math.min(100, Math.floor((overloadKeystrokes / OVERLOAD_TARGET) * 100));
+    const bonusReady = overloadKeystrokes >= OVERLOAD_TARGET;
+
+    scoreElement.textContent = overloadKeystrokes;
+    speedElement.textContent = overloadKeystrokes;
+
+    const blocks = 20;
+    const filled = Math.min(blocks, Math.floor((pct / 100) * blocks));
+    const bar = "#".repeat(filled) + "-".repeat(blocks - filled);
+
+    wordDisplay.textContent = bonusReady
+        ? `overload complete [${bar}] ${pct}%`
+        : `mash keys [${bar}] ${pct}%`;
+    wordDisplay.style.fontSize = window.innerWidth <= 600 ? '18px' : '24px';
+}
+
+function handleOverloadKeydown(e) {
+    if (gameEnded) return;
+    if (!timerInterval) return;
+    if (e.repeat) return;
+
+    // Overload counts key hits only; typed content is intentionally ignored.
+    e.preventDefault();
+    if (e.target && typeof e.target.value === 'string') {
+        e.target.value = '';
+    }
+
+    overloadKeystrokes += 1;
+    setOverloadProgress();
+}
+
+function renderFinalStats(result) {
+    const stat1Label = document.getElementById('final-stat-1-label');
+    const stat1Value = document.getElementById('final-stat-1-value');
+    const stat2Label = document.getElementById('final-stat-2-label');
+    const stat2Value = document.getElementById('final-stat-2-value');
+    const stat3Label = document.getElementById('final-stat-3-label');
+    const stat3Value = document.getElementById('final-stat-3-value');
+
+    if (!stat1Label || !stat1Value || !stat2Label || !stat2Value || !stat3Label || !stat3Value) {
+        return;
+    }
+
+    if (isOverloadMode()) {
+        const keystrokes = Number(result.keystrokes || result.total_attempts || 0);
+        const bonusMultiplier = Number(result.bonus_multiplier || (keystrokes >= OVERLOAD_TARGET ? 2 : 1));
+        const keysPerSecond = Number(result.keys_per_second || 0).toFixed(2);
+
+        stat1Label.textContent = 'keystrokes';
+        stat1Value.textContent = String(keystrokes);
+
+        stat2Label.textContent = 'keys per second';
+        stat2Value.textContent = String(keysPerSecond);
+
+        stat3Label.textContent = 'overcharge bonus';
+        stat3Value.textContent = bonusMultiplier > 1 ? `x${bonusMultiplier} active` : 'none';
+        return;
+    }
+
+    stat1Label.textContent = 'words typed';
+    stat1Value.textContent = String(result.total_attempts || 0);
+
+    stat2Label.textContent = 'average speed';
+    stat2Value.textContent = `${Number(result.avg_speed || 0).toFixed(2)} ms`;
+
+    stat3Label.textContent = 'mistake policy';
+    stat3Value.textContent = 'single typo ends run';
+}
+
+async function finalizeGame(result) {
+    if (gameEnded) return;
+    gameEnded = true;
+
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+
+    const wordInput = document.getElementById('word-input');
+    if (wordInput) wordInput.disabled = true;
+
+    try {
+        if (typeof window.sendTelemetry === 'function') {
+            await window.sendTelemetry(playerName, currentModeLabel, result.score);
+        }
+    } catch (err) {
+        console.error('Telemetry send failed:', err);
+    }
+
+    transitionStep('step-game', 'step-over', function() {
+        document.getElementById('game-over-reason').textContent = result.reason;
+        document.getElementById('final-score').textContent = result.score;
+        renderFinalStats(result);
+
+        const finalModeEl = document.getElementById('final-mode');
+        if (finalModeEl) {
+            finalModeEl.textContent = currentModeLabel.toLowerCase();
         }
     });
 }
 
+function startGame() {
+    gameEnded = false;
+    overloadKeystrokes = 0;
+
+    if (typeof window.TelemetryEngine?.resetTelemetry === 'function') {
+        window.TelemetryEngine.resetTelemetry();
+    }
+
+    const wordInput = document.getElementById('word-input');
+    wordInput.disabled = false;
+    wordInput.value = '';
+    wordInput.focus();
+    document.getElementById('last-speed').textContent = '-';
+
+    if (timerInterval) clearInterval(timerInterval);
+
+    if (isOverloadMode()) {
+        sessionId = null;
+        timeLeft = 10;
+        document.getElementById('score').textContent = '0';
+        document.getElementById('time-left').textContent = '10';
+        wordInput.placeholder = 'mash any keys as fast as possible';
+        setOverloadProgress();
+        timerInterval = setInterval(updateTimer, 1000);
+        return;
+    }
+
+    // classic mode
+    wordInput.placeholder = 'type the word here';
+    fetch('/api/start_game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: playerName, game_mode: currentModeLabel })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.session_id) return;
+
+        sessionId = data.session_id;
+        document.getElementById('score').textContent = data.score;
+        document.getElementById('time-left').textContent = Math.floor(data.time_left);
+        document.getElementById('current-word').textContent = data.word;
+        typeText(document.getElementById('current-word'), data.word, 40, () => {
+            adjustWordFontSize(data.word);
+        });
+        wordInput.value = '';
+        wordInput.focus();
+        lastWordStart = Date.now();
+        timeLeft = 120;
+        document.getElementById('last-speed').textContent = '-';
+        timerInterval = setInterval(updateTimer, 1000);
+    });
+}
+
 function submitWord(input) {
+    if (isOverloadMode()) return;
+
     fetch('/api/submit_word', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -247,13 +413,11 @@ function submitWord(input) {
             lastWordStart = Date.now();
             timeLeft = data.time_left;
         } else if (data.action === 'game_over') {
-            transitionStep('step-game', 'step-over', function() {
-                document.getElementById('game-over-reason').textContent = data.reason === 'time_up'
-                    ? 'Time is up!' : 'You misspelled the word!';
-                document.getElementById('final-score').textContent = data.score;
-                document.getElementById('final-words').textContent = data.total_attempts;
-                document.getElementById('final-speed').textContent = data.avg_speed.toFixed(2);
-                if (timerInterval) clearInterval(timerInterval);
+            finalizeGame({
+                reason: data.reason === 'time_up' ? 'Time is up!' : 'You misspelled the word!',
+                score: data.score,
+                total_attempts: data.total_attempts,
+                avg_speed: data.avg_speed
             });
         }
     });
@@ -269,6 +433,26 @@ function updateTimer() {
     }
     if (t <= 0 && timerInterval) {
         clearInterval(timerInterval);
+
+        if (isOverloadMode()) {
+            const bonusMultiplier = overloadKeystrokes >= OVERLOAD_TARGET ? 2 : 1;
+            const finalScore = overloadKeystrokes >= OVERLOAD_TARGET
+                ? overloadKeystrokes * 2
+                : overloadKeystrokes;
+            finalizeGame({
+                reason: overloadKeystrokes >= OVERLOAD_TARGET
+                    ? 'Overcharge complete! score doubled.'
+                    : 'Overload sequence complete.',
+                score: finalScore,
+                total_attempts: overloadKeystrokes,
+                avg_speed: 0,
+                keystrokes: overloadKeystrokes,
+                bonus_multiplier: bonusMultiplier,
+                keys_per_second: overloadKeystrokes / 10
+            });
+            return;
+        }
+
         if (sessionId) {
             fetch('/api/submit_word', {
                 method: 'POST',
@@ -278,12 +462,11 @@ function updateTimer() {
             .then(res => res.json())
             .then(data => {
                 if (data.action === 'game_over') {
-                    transitionStep('step-game', 'step-over', function() {
-                        document.getElementById('game-over-reason').textContent = data.reason === 'time_up'
-                            ? 'Time is up!' : 'You misspelled the word!';
-                        document.getElementById('final-score').textContent = data.score;
-                        document.getElementById('final-words').textContent = data.total_attempts;
-                        document.getElementById('final-speed').textContent = data.avg_speed.toFixed(2);
+                    finalizeGame({
+                        reason: data.reason === 'time_up' ? 'Time is up!' : 'You misspelled the word!',
+                        score: data.score,
+                        total_attempts: data.total_attempts,
+                        avg_speed: data.avg_speed
                     });
                 }
             });
