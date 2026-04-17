@@ -10,22 +10,465 @@ let currentMode = "classic";
 let currentModeLabel = "Classic";
 let gameEnded = false;
 let overloadKeystrokes = 0;
+let meltdownLives = 5;
+let meltdownScore = 0;
+let meltdownWordsCleared = 0;
+let meltdownRoundDeadline = 0;
+let meltdownRoundInterval = null;
+let meltdownPenaltyLock = false;
+let meltdownSurvivalBonus = 0;
+let meltdownCurrentWord = "";
+let flowTargetWpm = 40;
+let flowCurrentWpm = 0;
+let flowScore = 0;
+let flowKeyTimestamps = [];
+let flowOutOfBandStreak = 0;
+let flowSweetStreak = 0;
+let flowSweetTotalSeconds = 0;
+let flowElapsedSeconds = 0;
+let flowLastMultiplier = 1;
+let flowBestMultiplier = 1;
+let interferenceParagraphText = "";
+let interferenceModalOpen = false;
+let interferenceModalShownAt = 0;
+let interferenceDistractionTimeout = null;
+let interferenceReactionBonus = 0;
+let interferenceReactionCount = 0;
+let interferenceReactionTimes = [];
+let interferenceStartedAt = 0;
+let interferenceCurrentWpm = 0;
+let interferenceBaseScore = 0;
+let interferenceTypedLength = 0;
 const OVERLOAD_TARGET = 1000;
 const PLAYER_NAME_STORAGE_KEY = "typefighters_player_name";
+const MELTDOWN_ROUND_MS = 3000;
+const MELTDOWN_GLOBAL_SECONDS = 120;
+const MELTDOWN_STARTING_LIVES = 5;
+const MELTDOWN_SURVIVAL_BONUS = 5000;
+const FLOW_GLOBAL_SECONDS = 120;
+const FLOW_TARGET_START = 40;
+const FLOW_TARGET_SHIFT_SECONDS = 20;
+const FLOW_ALLOWED_BAND = 10;
+const FLOW_SWEET_BAND = 5;
+const INTERFERENCE_GLOBAL_SECONDS = 120;
+const INTERFERENCE_MIN_DELAY = 5000;
+const INTERFERENCE_MAX_DELAY = 10000;
+const INTERFERENCE_PARAGRAPH = "In the glass hallway, the monitors kept scrolling soft reminders about deadlines, but the room itself felt strangely calm. A notebook lay open beside a mug, a pencil, and a stack of typed pages that had been corrected twice already. The exercise was simple enough in theory: keep your hands moving, trust the rhythm, and let the words arrive without fighting them. Outside, footsteps passed, the air conditioner hummed, and a bright red cursor blinked like a metronome.";
+const MELTDOWN_WORDS = [
+    "counterintelligence",
+    "neurotransmitter",
+    "inconsequentialities",
+    "microcirculation",
+    "immunohistochemistry",
+    "counterproliferation",
+    "interconnectedness",
+    "electroencephalography",
+    "photosynthetically",
+    "deindustrialization",
+    "mischaracterization",
+    "thermoluminescent",
+    "interconvertibility",
+    "microphotometrically",
+    "neuropharmacology",
+    "counterdeployment",
+    "superparamagnetic",
+    "ultracentrifugation",
+    "spectrophotometer",
+    "anticonstitutional"
+];
 
 function resolveMode(rawMode) {
     const mode = (rawMode || "classic").toLowerCase();
+    if (mode === "meltdown") return "meltdown";
+    if (mode === "flow-state" || mode === "flow_state") return "flow_state";
     if (mode === "overload") return "overload";
     return "classic";
 }
 
 function modeLabel(mode) {
+    if (mode === "meltdown") return "Meltdown";
+    if (mode === "flow_state") return "Flow State";
+    if (mode === "interference") return "Interference";
     if (mode === "overload") return "Overload";
     return "Classic";
 }
 
+function isMeltdownMode() {
+    return currentMode === "meltdown";
+}
+
+function isFlowMode() {
+    return currentMode === "flow_state";
+}
+
+function isInterferenceMode() {
+    return currentMode === "interference";
+}
+
 function isOverloadMode() {
     return currentMode === "overload";
+}
+
+function pickMeltdownWord() {
+    const idx = Math.floor(Math.random() * MELTDOWN_WORDS.length);
+    return MELTDOWN_WORDS[idx];
+}
+
+function clearMeltdownRoundTimer() {
+    if (meltdownRoundInterval) {
+        clearInterval(meltdownRoundInterval);
+        meltdownRoundInterval = null;
+    }
+}
+
+function formatMeltdownSeconds(ms) {
+    return Math.max(0, ms / 1000).toFixed(2);
+}
+
+function updateMeltdownRoundUI(remainingMs) {
+    const timerEl = document.getElementById('meltdown-round-timer-value');
+    if (!timerEl) return;
+    timerEl.textContent = formatMeltdownSeconds(remainingMs);
+}
+
+function triggerMeltdownFlash() {
+    const gameBox = document.getElementById('game-box');
+    if (!gameBox) return;
+    gameBox.classList.remove('meltdown-flash');
+    void gameBox.offsetWidth;
+    gameBox.classList.add('meltdown-flash');
+    setTimeout(() => {
+        gameBox.classList.remove('meltdown-flash');
+    }, 220);
+}
+
+function playMeltdownBuzz() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    try {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(90, ctx.currentTime + 0.13);
+
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.24, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+
+        setTimeout(() => {
+            ctx.close().catch(() => {});
+        }, 220);
+    } catch (e) {
+        // Audio may fail due to browser policies; visual flash still signals penalty.
+    }
+}
+
+function setMeltdownWord(nextWord) {
+    meltdownCurrentWord = nextWord;
+    const wordDisplay = document.getElementById('current-word');
+    if (wordDisplay) {
+        wordDisplay.textContent = meltdownCurrentWord;
+        adjustWordFontSize(meltdownCurrentWord);
+    }
+}
+
+function startMeltdownRound() {
+    meltdownPenaltyLock = false;
+    setMeltdownWord(pickMeltdownWord());
+    meltdownRoundDeadline = performance.now() + MELTDOWN_ROUND_MS;
+    updateMeltdownRoundUI(MELTDOWN_ROUND_MS);
+
+    clearMeltdownRoundTimer();
+    meltdownRoundInterval = setInterval(() => {
+        const remaining = meltdownRoundDeadline - performance.now();
+        if (remaining <= 0) {
+            updateMeltdownRoundUI(0);
+            handleMeltdownPenalty('timeout');
+            return;
+        }
+        updateMeltdownRoundUI(remaining);
+    }, 10);
+}
+
+function updateMeltdownHud() {
+    const livesEl = document.getElementById('meltdown-lives-value');
+    if (livesEl) livesEl.textContent = String(meltdownLives);
+    document.getElementById('score').textContent = String(meltdownScore);
+}
+
+function handleMeltdownSuccess() {
+    if (gameEnded) return;
+    const remaining = Math.max(0, meltdownRoundDeadline - performance.now());
+    const bonus = Math.floor(remaining);
+    meltdownScore += 100 + bonus;
+    meltdownWordsCleared += 1;
+    document.getElementById('last-speed').textContent = String(bonus);
+    updateMeltdownHud();
+    startMeltdownRound();
+}
+
+function handleMeltdownPenalty(type) {
+    if (gameEnded || meltdownPenaltyLock) return;
+    meltdownPenaltyLock = true;
+
+    triggerMeltdownFlash();
+    playMeltdownBuzz();
+
+    meltdownLives -= 1;
+    updateMeltdownHud();
+
+    if (meltdownLives <= 0) {
+        clearMeltdownRoundTimer();
+        finalizeGame({
+            reason: type === 'timeout' ? 'Meltdown timer expired too many times.' : 'You burned all lives under pressure.',
+            score: meltdownScore,
+            total_attempts: meltdownWordsCleared,
+            avg_speed: 0,
+            lives_left: 0,
+            survival_bonus: 0
+        });
+        return;
+    }
+
+    setTimeout(() => {
+        if (!gameEnded) {
+            startMeltdownRound();
+        }
+    }, 70);
+}
+
+function setupModeHud() {
+    const gameBox = document.getElementById('game-box');
+    const meltdownHud = document.getElementById('meltdown-hud');
+    const flowPanel = document.getElementById('flow-panel');
+    const interferencePanel = document.getElementById('interference-panel');
+    const metricLabel = document.getElementById('live-metric-label');
+    const metricUnit = document.getElementById('live-metric-unit');
+
+    if (!gameBox || !meltdownHud || !flowPanel || !interferencePanel || !metricLabel || !metricUnit) return;
+
+    if (isMeltdownMode()) {
+        meltdownHud.removeAttribute('hidden');
+        flowPanel.setAttribute('hidden', 'hidden');
+        interferencePanel.setAttribute('hidden', 'hidden');
+        gameBox.classList.add('meltdown-active');
+        metricLabel.textContent = 'bonus from remaining ms';
+        metricUnit.textContent = 'pts';
+        return;
+    }
+
+    meltdownHud.setAttribute('hidden', 'hidden');
+    gameBox.classList.remove('meltdown-active');
+
+    if (isFlowMode()) {
+        flowPanel.removeAttribute('hidden');
+        interferencePanel.setAttribute('hidden', 'hidden');
+        metricLabel.textContent = 'sweet spot combo';
+        metricUnit.textContent = 'x';
+        return;
+    }
+
+    flowPanel.setAttribute('hidden', 'hidden');
+
+    if (isInterferenceMode()) {
+        interferencePanel.removeAttribute('hidden');
+        metricLabel.textContent = 'reaction bonus';
+        metricUnit.textContent = 'pts';
+        return;
+    }
+
+    interferencePanel.setAttribute('hidden', 'hidden');
+
+    if (isOverloadMode()) {
+        metricLabel.textContent = 'keystrokes';
+        metricUnit.textContent = '';
+        return;
+    }
+
+    metricLabel.textContent = 'last word speed';
+    metricUnit.textContent = 'ms';
+}
+
+function initFlowMarquee() {
+    const track = document.getElementById('flow-marquee-track');
+    if (!track) return;
+
+    const source = [
+        'steady', 'rhythm', 'tempo', 'baseline', 'typing', 'motion',
+        'cadence', 'signal', 'pattern', 'focus', 'breath', 'flow'
+    ];
+
+    const words = [];
+    for (let i = 0; i < 42; i += 1) {
+        words.push(source[Math.floor(Math.random() * source.length)]);
+    }
+    track.textContent = words.join('   ');
+}
+
+function clampFlowTarget(value) {
+    return Math.min(110, Math.max(20, value));
+}
+
+function shiftFlowTarget() {
+    const magnitude = 5 + Math.floor(Math.random() * 6);
+    const direction = Math.random() < 0.5 ? -1 : 1;
+    flowTargetWpm = clampFlowTarget(flowTargetWpm + (direction * magnitude));
+}
+
+function flowIsCountableKey(e) {
+    if (!e || typeof e.key !== 'string') return false;
+    if (e.key === ' ' || e.key === 'Spacebar') return true;
+    return e.key.length === 1;
+}
+
+function handleFlowKeydown(e) {
+    if (!isFlowMode() || gameEnded || !timerInterval) return;
+
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        return;
+    }
+
+    if (!flowIsCountableKey(e) || e.repeat) return;
+
+    flowKeyTimestamps.push(performance.now());
+}
+
+function updateFlowGauges() {
+    const targetEl = document.getElementById('flow-target-wpm');
+    const currentEl = document.getElementById('flow-current-wpm');
+    if (targetEl) targetEl.textContent = String(flowTargetWpm);
+    if (currentEl) currentEl.textContent = String(Math.round(flowCurrentWpm));
+}
+
+function updateFlowSecond() {
+    flowElapsedSeconds += 1;
+
+    if (flowElapsedSeconds % FLOW_TARGET_SHIFT_SECONDS === 0) {
+        shiftFlowTarget();
+    }
+
+    const now = performance.now();
+    const cutoff = now - 2000;
+    flowKeyTimestamps = flowKeyTimestamps.filter((t) => t >= cutoff);
+
+    const charsInWindow = flowKeyTimestamps.length;
+    flowCurrentWpm = (charsInWindow / 5) * (60 / 2);
+
+    const delta = Math.abs(flowCurrentWpm - flowTargetWpm);
+    if (delta > FLOW_ALLOWED_BAND) {
+        flowOutOfBandStreak += 1;
+        flowSweetStreak = 0;
+    } else {
+        flowOutOfBandStreak = 0;
+        if (delta <= FLOW_SWEET_BAND) {
+            flowSweetStreak += 1;
+            flowSweetTotalSeconds += 1;
+            flowLastMultiplier = Math.floor(flowSweetStreak / 10) + 1;
+            flowBestMultiplier = Math.max(flowBestMultiplier, flowLastMultiplier);
+            flowScore += 10 * flowLastMultiplier;
+        } else {
+            flowSweetStreak = 0;
+            flowLastMultiplier = 1;
+        }
+    }
+
+    document.getElementById('score').textContent = String(flowScore);
+    document.getElementById('last-speed').textContent = String(flowLastMultiplier);
+    updateFlowGauges();
+
+    if (flowOutOfBandStreak >= 2) {
+        finalizeGame({
+            reason: 'You drifted outside target tempo for 2 consecutive seconds.',
+            score: flowScore,
+            total_attempts: flowSweetTotalSeconds,
+            avg_speed: 0,
+            flow_target_wpm: flowTargetWpm,
+            flow_current_wpm: flowCurrentWpm,
+            flow_best_combo: flowBestMultiplier
+        });
+    }
+}
+
+function clearInterferenceTimeout() {
+    if (interferenceDistractionTimeout) {
+        clearTimeout(interferenceDistractionTimeout);
+        interferenceDistractionTimeout = null;
+    }
+}
+
+function getInterferenceAverageReactionTime() {
+    if (!interferenceReactionTimes.length) return 0;
+    const total = interferenceReactionTimes.reduce((sum, value) => sum + value, 0);
+    return total / interferenceReactionTimes.length;
+}
+
+function updateInterferenceScore() {
+    const input = document.getElementById('interference-input');
+    if (!input) return;
+
+    interferenceTypedLength = input.value.length;
+    const elapsedMs = Math.max(1000, performance.now() - interferenceStartedAt);
+    const elapsedMinutes = elapsedMs / 60000;
+    interferenceCurrentWpm = elapsedMinutes > 0 ? (interferenceTypedLength / 5) / elapsedMinutes : 0;
+    interferenceBaseScore = Math.floor(interferenceCurrentWpm * 100);
+
+    const totalScore = interferenceBaseScore + interferenceReactionBonus;
+    const scoreElement = document.getElementById('score');
+    const metricValue = document.getElementById('last-speed');
+    if (scoreElement) scoreElement.textContent = String(totalScore);
+    if (metricValue) metricValue.textContent = String(interferenceReactionBonus);
+}
+
+function hideInterferenceModal() {
+    const modal = document.getElementById('interference-modal');
+    if (modal) modal.setAttribute('hidden', 'hidden');
+    interferenceModalOpen = false;
+}
+
+function scheduleNextInterferenceDistraction() {
+    clearInterferenceTimeout();
+    if (!isInterferenceMode() || gameEnded) return;
+
+    const delay = INTERFERENCE_MIN_DELAY + Math.floor(Math.random() * (INTERFERENCE_MAX_DELAY - INTERFERENCE_MIN_DELAY + 1));
+    interferenceDistractionTimeout = setTimeout(() => {
+        if (isInterferenceMode() && !gameEnded && !interferenceModalOpen) {
+            const modal = document.getElementById('interference-modal');
+            const input = document.getElementById('interference-input');
+            if (!modal || !input) return;
+            interferenceModalOpen = true;
+            interferenceModalShownAt = Date.now();
+            modal.removeAttribute('hidden');
+            input.blur();
+        }
+    }, delay);
+}
+
+function closeInterferenceModal() {
+    if (!interferenceModalOpen || gameEnded) return;
+
+    const reactionTime = Math.max(1, Date.now() - interferenceModalShownAt);
+    const bonus = Math.floor(500000 / reactionTime);
+    interferenceReactionTimes.push(reactionTime);
+    interferenceReactionBonus += bonus;
+    interferenceReactionCount += 1;
+
+    hideInterferenceModal();
+    updateInterferenceScore();
+
+    const input = document.getElementById('interference-input');
+    if (input) input.focus();
+
+    scheduleNextInterferenceDistraction();
 }
 
 function getStoredPlayerName() {
@@ -39,6 +482,21 @@ function getStoredPlayerName() {
 function saveStoredPlayerName(name) {
     try {
         localStorage.setItem(PLAYER_NAME_STORAGE_KEY, name);
+        if (isInterferenceMode()) {
+            const wpm = Number(result.interference_wpm || 0).toFixed(2);
+            const bonus = Number(result.reaction_bonus || 0);
+            const reactions = Number(result.reaction_count || 0);
+
+            stat1Label.textContent = 'paragraph wpm';
+            stat1Value.textContent = String(wpm);
+
+            stat2Label.textContent = 'reaction bonus';
+            stat2Value.textContent = `+${bonus}`;
+
+            stat3Label.textContent = 'distractions closed';
+            stat3Value.textContent = String(reactions);
+            return;
+        }
     } catch (e) {
         // if storage is blocked, gameplay still works for this session
     }
@@ -106,6 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const modeLabelEl = document.getElementById('current-mode-label');
     if (modeLabelEl) modeLabelEl.textContent = currentModeLabel.toLowerCase();
+    setupModeHud();
 
     // this is for the name step
     document.getElementById('name-next-btn').onclick = function() {
@@ -142,6 +601,25 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('word-input').addEventListener('keydown', function(e) {
+        if (isMeltdownMode()) {
+            if (e.key !== 'Enter') return;
+
+            const input = this.value.trim();
+            if (!input) {
+                handleMeltdownPenalty('typo');
+                this.value = '';
+                return;
+            }
+
+            if (input === meltdownCurrentWord) {
+                handleMeltdownSuccess();
+            } else {
+                handleMeltdownPenalty('typo');
+            }
+            this.value = '';
+            return;
+        }
+
         if (isOverloadMode()) {
             handleOverloadKeydown(e);
             return;
@@ -160,6 +638,36 @@ document.addEventListener('DOMContentLoaded', function() {
             this.value = '';
         }
     });
+
+    const flowInput = document.getElementById('flow-input');
+    if (flowInput) {
+        flowInput.addEventListener('keydown', handleFlowKeydown);
+        flowInput.addEventListener('input', function () {
+            // Keep this field clear; only rhythm and keystrokes matter.
+            this.value = '';
+        });
+    }
+
+    const interferenceInput = document.getElementById('interference-input');
+    if (interferenceInput) {
+        interferenceInput.addEventListener('input', function () {
+            if (!isInterferenceMode()) return;
+            updateInterferenceScore();
+        });
+        interferenceInput.addEventListener('keydown', function (e) {
+            if (!isInterferenceMode()) return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+            }
+        });
+    }
+
+    const interferenceClose = document.getElementById('interference-modal-close');
+    if (interferenceClose) {
+        interferenceClose.addEventListener('click', function () {
+            if (isInterferenceMode()) closeInterferenceModal();
+        });
+    }
 
     // this stops people from copying the word
     document.getElementById('game-box').addEventListener('mousedown', function(e) {
@@ -296,6 +804,37 @@ function renderFinalStats(result) {
         return;
     }
 
+    if (isMeltdownMode()) {
+        const livesLeft = Number(result.lives_left || 0);
+        const survivalBonus = Number(result.survival_bonus || 0);
+
+        stat1Label.textContent = 'words cleared';
+        stat1Value.textContent = String(result.total_attempts || 0);
+
+        stat2Label.textContent = 'lives remaining';
+        stat2Value.textContent = String(livesLeft);
+
+        stat3Label.textContent = 'survival bonus';
+        stat3Value.textContent = survivalBonus > 0 ? `+${survivalBonus}` : 'none';
+        return;
+    }
+
+    if (isFlowMode()) {
+        const target = Math.round(Number(result.flow_target_wpm || 0));
+        const current = Math.round(Number(result.flow_current_wpm || 0));
+        const bestCombo = Number(result.flow_best_combo || 1);
+
+        stat1Label.textContent = 'target / current wpm';
+        stat1Value.textContent = `${target} / ${current}`;
+
+        stat2Label.textContent = 'sweet spot seconds';
+        stat2Value.textContent = String(result.total_attempts || 0);
+
+        stat3Label.textContent = 'best combo multiplier';
+        stat3Value.textContent = `x${bestCombo}`;
+        return;
+    }
+
     stat1Label.textContent = 'words typed';
     stat1Value.textContent = String(result.total_attempts || 0);
 
@@ -314,6 +853,10 @@ async function finalizeGame(result) {
         clearInterval(timerInterval);
         timerInterval = null;
     }
+
+    clearMeltdownRoundTimer();
+    clearInterferenceTimeout();
+    hideInterferenceModal();
 
     const wordInput = document.getElementById('word-input');
     if (wordInput) wordInput.disabled = true;
@@ -341,6 +884,12 @@ async function finalizeGame(result) {
 function startGame() {
     gameEnded = false;
     overloadKeystrokes = 0;
+    meltdownLives = MELTDOWN_STARTING_LIVES;
+    meltdownScore = 0;
+    meltdownWordsCleared = 0;
+    meltdownSurvivalBonus = 0;
+    meltdownCurrentWord = "";
+    meltdownPenaltyLock = false;
 
     if (typeof window.TelemetryEngine?.resetTelemetry === 'function') {
         window.TelemetryEngine.resetTelemetry();
@@ -353,6 +902,20 @@ function startGame() {
     document.getElementById('last-speed').textContent = '-';
 
     if (timerInterval) clearInterval(timerInterval);
+    clearMeltdownRoundTimer();
+
+    if (isMeltdownMode()) {
+        sessionId = null;
+        timeLeft = MELTDOWN_GLOBAL_SECONDS;
+        document.getElementById('score').textContent = '0';
+        document.getElementById('time-left').textContent = String(MELTDOWN_GLOBAL_SECONDS);
+        document.getElementById('last-speed').textContent = '0';
+        wordInput.placeholder = 'type fast, submit before 3.00s';
+        updateMeltdownHud();
+        startMeltdownRound();
+        timerInterval = setInterval(updateTimer, 1000);
+        return;
+    }
 
     if (isOverloadMode()) {
         sessionId = null;
@@ -361,6 +924,68 @@ function startGame() {
         document.getElementById('time-left').textContent = '10';
         wordInput.placeholder = 'mash any keys as fast as possible';
         setOverloadProgress();
+        timerInterval = setInterval(updateTimer, 1000);
+        return;
+    }
+
+    if (isFlowMode()) {
+        const flowInput = document.getElementById('flow-input');
+        sessionId = null;
+        timeLeft = FLOW_GLOBAL_SECONDS;
+        flowTargetWpm = FLOW_TARGET_START;
+        flowCurrentWpm = 0;
+        flowScore = 0;
+        flowKeyTimestamps = [];
+        flowOutOfBandStreak = 0;
+        flowSweetStreak = 0;
+        flowSweetTotalSeconds = 0;
+        flowElapsedSeconds = 0;
+        flowLastMultiplier = 1;
+        flowBestMultiplier = 1;
+
+        document.getElementById('score').textContent = '0';
+        document.getElementById('time-left').textContent = String(FLOW_GLOBAL_SECONDS);
+        document.getElementById('last-speed').textContent = '1';
+        initFlowMarquee();
+        updateFlowGauges();
+
+        if (flowInput) {
+            flowInput.value = '';
+            flowInput.focus();
+        }
+
+        timerInterval = setInterval(updateTimer, 1000);
+        return;
+    }
+
+    if (isInterferenceMode()) {
+        const interferenceInput = document.getElementById('interference-input');
+        const interferenceParagraph = document.getElementById('interference-paragraph');
+        const modal = document.getElementById('interference-modal');
+
+        sessionId = null;
+        timeLeft = INTERFERENCE_GLOBAL_SECONDS;
+        interferenceStartedAt = performance.now();
+
+        document.getElementById('score').textContent = '0';
+        document.getElementById('time-left').textContent = String(INTERFERENCE_GLOBAL_SECONDS);
+        document.getElementById('last-speed').textContent = '0';
+
+        if (interferenceParagraph) {
+            interferenceParagraph.textContent = INTERFERENCE_PARAGRAPH;
+        }
+
+        if (interferenceInput) {
+            interferenceInput.value = '';
+            interferenceInput.focus();
+        }
+
+        if (modal) {
+            modal.setAttribute('hidden', 'hidden');
+        }
+
+        updateInterferenceScore();
+        scheduleNextInterferenceDistraction();
         timerInterval = setInterval(updateTimer, 1000);
         return;
     }
@@ -393,7 +1018,7 @@ function startGame() {
 }
 
 function submitWord(input) {
-    if (isOverloadMode()) return;
+    if (isOverloadMode() || isMeltdownMode() || isFlowMode() || isInterferenceMode()) return;
 
     fetch('/api/submit_word', {
         method: 'POST',
@@ -431,8 +1056,68 @@ function updateTimer() {
         timeElement.textContent = t;
         timeLeft = t;
     }
+
+    if (isFlowMode() && timerInterval) {
+        updateFlowSecond();
+        if (!gameEnded) {
+            const flowInput = document.getElementById('flow-input');
+            if (flowInput) flowInput.focus();
+        }
+
+        if (t <= 0 && !gameEnded) {
+            clearInterval(timerInterval);
+            finalizeGame({
+                reason: 'Flow session completed.',
+                score: flowScore,
+                total_attempts: flowSweetTotalSeconds,
+                avg_speed: 0,
+                flow_target_wpm: flowTargetWpm,
+                flow_current_wpm: flowCurrentWpm,
+                flow_best_combo: flowBestMultiplier
+            });
+        }
+        return;
+    }
+
+    if (isInterferenceMode() && timerInterval) {
+        updateInterferenceScore();
+        if (!interferenceModalOpen) {
+            const interferenceInput = document.getElementById('interference-input');
+            if (interferenceInput) interferenceInput.focus();
+        }
+
+        if (t <= 0 && !gameEnded) {
+            clearInterval(timerInterval);
+            finalizeGame({
+                reason: 'Interference session completed.',
+                score: interferenceBaseScore + interferenceReactionBonus,
+                total_attempts: interferenceReactionCount,
+                avg_speed: 0,
+                interference_wpm: interferenceCurrentWpm,
+                reaction_bonus: interferenceReactionBonus,
+                reaction_count: interferenceReactionCount,
+                avg_reaction_time: getInterferenceAverageReactionTime()
+            });
+        }
+        return;
+    }
+
     if (t <= 0 && timerInterval) {
         clearInterval(timerInterval);
+
+        if (isMeltdownMode()) {
+            meltdownSurvivalBonus = MELTDOWN_SURVIVAL_BONUS;
+            meltdownScore += MELTDOWN_SURVIVAL_BONUS;
+            finalizeGame({
+                reason: 'You survived the full 120s under pressure.',
+                score: meltdownScore,
+                total_attempts: meltdownWordsCleared,
+                avg_speed: 0,
+                lives_left: meltdownLives,
+                survival_bonus: meltdownSurvivalBonus
+            });
+            return;
+        }
 
         if (isOverloadMode()) {
             const bonusMultiplier = overloadKeystrokes >= OVERLOAD_TARGET ? 2 : 1;

@@ -2,7 +2,8 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% set selected_mode = (request.args.get('mode', 'classic') | lower) %}
+{% set selected_mode_raw = (request.args.get('mode', 'classic') | lower) %}
+{% set selected_mode = 'flow-state' if selected_mode_raw == 'flow_state' else selected_mode_raw %}
 {% set mode_title_map = {
     'classic': 'classic',
     'meltdown': 'meltdown',
@@ -12,6 +13,7 @@
 } %}
 {% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
 <div id="game-box" class="game-mode-{{ selected_mode }}" data-game-mode="{{ selected_mode }}" style="width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    <div id="meltdown-vignette" class="meltdown-vignette" aria-hidden="true"></div>
     <div class="game-mode-banner mb-3">mode: <span id="current-mode-label">{{ mode_title }}</span></div>
     <div id="step-name" style="display:flex;flex-direction:column;align-items:flex-start;width:100%;">
         <div class="menu-title mb-4">enter your name</div>
@@ -27,9 +29,36 @@
             <div>score: <span id="score">0</span></div>
             <div>time left: <span id="time-left">120</span>s</div>
         </div>
+        <div id="meltdown-hud" class="meltdown-hud" hidden>
+            <div class="meltdown-lives">lives: <span id="meltdown-lives-value">5</span></div>
+            <div class="meltdown-round-timer"><span id="meltdown-round-timer-value">3.00</span>s</div>
+        </div>
+        <div id="flow-panel" class="flow-panel" hidden>
+            <div class="flow-gauges">
+                <div class="flow-gauge">target wpm: <span id="flow-target-wpm">40</span></div>
+                <div class="flow-gauge">current wpm: <span id="flow-current-wpm">0</span></div>
+            </div>
+            <div class="flow-marquee-wrap" aria-hidden="true">
+                <div id="flow-marquee-track" class="flow-marquee-track"></div>
+            </div>
+            <input type="text" id="flow-input" class="flow-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type continuously to match the rhythm">
+        </div>
+        <div id="interference-panel" class="interference-panel" hidden>
+            <div class="interference-heading">retype the paragraph below</div>
+            <p id="interference-paragraph" class="interference-paragraph"></p>
+            <textarea id="interference-input" class="interference-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type the paragraph here"></textarea>
+        </div>
         <div class="word-display" id="current-word"></div>
         <input type="text" id="word-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type the word here">
-        <div class="mt-3" style="font-size:1rem; text-align:left;">last word speed: <span id="last-speed">-</span> ms</div>
+        <div class="mt-3" style="font-size:1rem; text-align:left;"><span id="live-metric-label">last word speed</span>: <span id="last-speed">-</span> <span id="live-metric-unit">ms</span></div>
+    </div>
+    <div id="interference-modal" class="interference-modal" hidden>
+        <div class="interference-modal-card">
+            <button id="interference-modal-close" class="interference-modal-close" type="button" aria-label="click the red x to continue">
+                <span class="interference-modal-x">X</span>
+                <span class="interference-modal-text">CLICK THE RED X TO CONTINUE</span>
+            </button>
+        </div>
     </div>
     <div id="step-over" style="display:none;flex-direction:column;align-items:flex-start;width:100%;">
         <div class="menu-title mb-4">game over</span></div>

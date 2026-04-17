@@ -1,5 +1,4 @@
 (function () {
-    const DEFAULT_INPUT_SELECTOR = "#word-input";
 
     const state = {
         presses: [],
@@ -190,8 +189,11 @@
 
     function startTelemetry(options) {
         const opts = options || {};
-        const selector = opts.inputSelector || DEFAULT_INPUT_SELECTOR;
-        state.targetElement = document.querySelector(selector);
+        state.targetElement = null;
+
+        if (opts.inputSelector) {
+            state.targetElement = document.querySelector(opts.inputSelector);
+        }
 
         if (state.attached) return;
 

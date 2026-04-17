@@ -126,7 +126,7 @@ def about():
 @app.route('/highscores')
 def highscores():
     # this shows the high scores page
-    scores = HighScore.query.order_by(HighScore.score.desc()).limit(10).all()
+    scores = HighScore.query.order_by(HighScore.score.desc(), HighScore.created_at.desc()).limit(10).all()
     return render_template('highscores.html', scores=scores)
 
 @app.route('/api/start_game', methods=['POST'])
@@ -181,20 +181,20 @@ def _safe_int(value, field_name):
 
 @app.route('/api/submit_word', methods=['POST'])
 def api_submit_word():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     session_id = data.get('session_id')
     user_input = data.get('input', '')
+
     if not session_id or session_id not in active_sessions:
         return jsonify({'error': 'Invalid session'}), 400
 
     session = active_sessions[session_id]
-    current_word = session['current_word']
-    word_start_time = session['word_start_time']
+    current_word = session.get('current_word')
+    word_start_time = session.get('word_start_time')
     if not current_word or not word_start_time:
         return jsonify({'error': 'No active word'}), 400
 
-    time_taken = (datetime.utcnow() - word_start_time).total_seconds() * 1000  # ms
-
+    time_taken = (datetime.utcnow() - word_start_time).total_seconds() * 1000
     elapsed_time = (datetime.utcnow() - session['start_time']).total_seconds()
     time_left = max(0, 120 - int(elapsed_time))
 
@@ -210,6 +210,34 @@ def api_submit_word():
         save_high_score(session)
         active_sessions.pop(session_id, None)
         return jsonify(result)
+
+    if user_input == current_word:
+        session['total_attempts'] += 1
+        session['total_speed'] += time_taken
+        score = calculate_greedy_score(current_word, time_taken)
+        session['score'] += score
+
+        word = random.choice(WORD_LIST)
+        session['current_word'] = word
+        session['word_start_time'] = datetime.utcnow()
+        return jsonify({
+            'action': 'new_word',
+            'word': word,
+            'score': session['score'],
+            'time_left': time_left
+        })
+
+    avg_speed = session['total_speed'] / session['total_attempts'] if session['total_attempts'] > 0 else 0
+    result = {
+        'action': 'game_over',
+        'reason': 'wrong_word',
+        'score': session['score'],
+        'total_attempts': session['total_attempts'],
+        'avg_speed': avg_speed
+    }
+    save_high_score(session)
+    active_sessions.pop(session_id, None)
+    return jsonify(result)
 
 
 @app.route('/api/save_telemetry', methods=['POST'])
@@ -339,34 +367,6 @@ def admin_export_data():
         mimetype='text/csv',
         headers={'Content-Disposition': 'attachment; filename=telemetry_data.csv'}
     )
-    
-    if user_input == current_word:
-        session['total_attempts'] += 1
-        session['total_speed'] += time_taken
-        score = calculate_greedy_score(current_word, time_taken)
-        session['score'] += score
-
-        word = random.choice(WORD_LIST)
-        session['current_word'] = word
-        session['word_start_time'] = datetime.utcnow()
-        return jsonify({
-            'action': 'new_word',
-            'word': word,
-            'score': session['score'],
-            'time_left': time_left
-        })
-    else:
-        avg_speed = session['total_speed'] / session['total_attempts'] if session['total_attempts'] > 0 else 0
-        result = {
-            'action': 'game_over',
-            'reason': 'wrong_word',
-            'score': session['score'],
-            'total_attempts': session['total_attempts'],
-            'avg_speed': avg_speed
-        }
-        save_high_score(session)
-        active_sessions.pop(session_id, None)
-        return jsonify(result)
 
 def calculate_greedy_score(word, time_taken):
     # this function calculates the score based on word length and speed

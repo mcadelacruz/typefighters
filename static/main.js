@@ -15,6 +15,10 @@ function getStoredPlayerName() {
 function showTransitionBlank(cb, delay=400) {
     // this shows the black overlay for transitions
     const blank = document.getElementById('transition-blank');
+    if (!blank) {
+        if (cb) setTimeout(cb, delay);
+        return;
+    }
     blank.classList.add('active');
     setTimeout(() => {
         if (cb) cb();
@@ -23,6 +27,7 @@ function showTransitionBlank(cb, delay=400) {
 function hideTransitionBlank(delay=100) {
     // this hides the black overlay after a delay
     const blank = document.getElementById('transition-blank');
+    if (!blank) return;
     setTimeout(() => {
         blank.classList.remove('active');
     }, delay);

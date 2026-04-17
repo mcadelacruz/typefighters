@@ -11,6 +11,7 @@
                 <tr>
                     <th>rank</th>
                     <th>name</th>
+                    <th>mode</th>
                     <th>score</th>
                     <th>avg speed (ms)</th>
                     <th>words</th>
@@ -21,13 +22,14 @@
                 <tr>
                     <td>{{ loop.index }}</td>
                     <td>{{ score.name }}</td>
+                    <td>{{ score.game_mode }}</td>
                     <td>{{ score.score }}</td>
                     <td>{{ "%.2f"|format(score.avg_speed) }}</td>
                     <td>{{ score.words_typed }}</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="text-center">no high scores yet.</td>
+                    <td colspan="6" class="text-center">no high scores yet.</td>
                 </tr>
                 {% endfor %}
             </tbody>
