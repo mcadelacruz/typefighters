@@ -16,7 +16,15 @@
     'interference': 'interference',
     'overload': 'overload'
 } %}
+{% set mode_instruction_map = {
+    'classic': 'type each word and press enter. faster words score higher.',
+    'meltdown': 'type the shown long word and press enter before the timer hits zero. mistakes or timeouts cost lives.',
+    'flow-state': 'type the underlined moving word to auto-submit. stay near target wpm to keep scoring.',
+    'interference': 'retype the full paragraph exactly while random popups interrupt you. clear popups fast and continue typing.',
+    'overload': 'mash varied keys fast for 30s; repeated same-key spam is throttled. fill the meter for overcharge bonus.'
+} %}
 {% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
+{% set mode_instruction = mode_instruction_map.get(selected_mode, mode_instruction_map['classic']) %}
 {% set changing_name = request.args.get('change_name') == '1' %}
 <div id="game-box" class="game-mode-{{ selected_mode }}" data-game-mode="{{ selected_mode }}" style="width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
     {% if not changing_name %}
@@ -29,6 +37,7 @@
     </div>
     <div id="step-start" style="display:none;flex-direction:column;align-items:flex-start;width:100%;">
         <div class="menu-title mb-4">type <span style="color:#fff;">start</span> to begin</div>
+        <div id="mode-start-instructions" class="mb-3" style="max-width:56ch;font-size:0.95rem;line-height:1.4;color:rgba(255,255,255,0.86);">{{ mode_instruction }}</div>
         <input type="text" id="start-input" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     </div>
     <div id="step-game" style="display:none;flex-direction:column;align-items:flex-start;width:100%;">

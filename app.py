@@ -552,6 +552,81 @@ def admin_export_data():
         headers={'Content-Disposition': 'attachment; filename=telemetry_data.csv'}
     )
 
+@app.route('/admin/dashboard', methods=['GET'])
+def admin_dashboard():
+    # Analytics dashboard showing telemetry data statistics
+    all_telemetry = TelemetryData.query.all()
+    
+    if not all_telemetry:
+        return render_template('dashboard.html', 
+                             stats={},
+                             mode_stats={},
+                             total_sessions=0,
+                             feature_stats={})
+    
+    # Calculate overall statistics
+    total_sessions = len(all_telemetry)
+    
+    # Group by game mode and calculate statistics
+    mode_stats = {}
+    for mode in ['Classic', 'Meltdown', 'Flow State', 'Interference', 'Overload']:
+        mode_data = [t for t in all_telemetry if t.game_mode == mode]
+        if mode_data:
+            mode_stats[mode] = {
+                'count': len(mode_data),
+                'avg_score': sum(t.score for t in mode_data) / len(mode_data),
+                'avg_wpm': sum(t.typing_speed_wpm for t in mode_data) / len(mode_data),
+                'avg_dwell_time': sum(t.avg_dwell_time for t in mode_data) / len(mode_data),
+                'avg_flight_time': sum(t.avg_flight_time for t in mode_data) / len(mode_data),
+                'avg_flight_variance': sum(t.flight_time_variance for t in mode_data) / len(mode_data),
+                'avg_error_rate': sum(t.error_correction_rate for t in mode_data) / len(mode_data),
+                'percentage': (len(mode_data) / total_sessions) * 100
+            }
+    
+    # Feature statistics across all modes
+    feature_stats = {
+        'dwell_times': [t.avg_dwell_time for t in all_telemetry if t.avg_dwell_time is not None],
+        'flight_times': [t.avg_flight_time for t in all_telemetry if t.avg_flight_time is not None],
+        'flight_variances': [t.flight_time_variance for t in all_telemetry if t.flight_time_variance is not None],
+        'error_rates': [t.error_correction_rate for t in all_telemetry if t.error_correction_rate is not None],
+        'typing_speeds': [t.typing_speed_wpm for t in all_telemetry if t.typing_speed_wpm is not None]
+    }
+    
+    # Calculate min/max/avg for features
+    def calc_stats(values):
+        if not values:
+            return {'min': 0, 'max': 0, 'mean': 0, 'median': 0}
+        values = sorted(values)
+        n = len(values)
+        return {
+            'min': min(values),
+            'max': max(values),
+            'mean': sum(values) / n,
+            'median': values[n // 2]
+        }
+    
+    feature_summary = {
+        'dwell_times': calc_stats(feature_stats['dwell_times']),
+        'flight_times': calc_stats(feature_stats['flight_times']),
+        'flight_variances': calc_stats(feature_stats['flight_variances']),
+        'error_rates': calc_stats(feature_stats['error_rates']),
+        'typing_speeds': calc_stats(feature_stats['typing_speeds'])
+    }
+    
+    # Top players per mode
+    top_players = {}
+    for mode in ['Classic', 'Meltdown', 'Flow State', 'Interference', 'Overload']:
+        mode_data = sorted([t for t in all_telemetry if t.game_mode == mode], 
+                          key=lambda x: x.score, reverse=True)[:5]
+        top_players[mode] = [(t.player_name, t.score) for t in mode_data]
+    
+    return render_template('dashboard.html',
+                         stats=mode_stats,
+                         feature_stats=feature_summary,
+                         feature_counts=feature_stats,
+                         total_sessions=total_sessions,
+                         top_players=top_players)
+
 def calculate_greedy_score(word, time_taken):
     # this function calculates the score based on word length and speed
     if time_taken <= 0:
