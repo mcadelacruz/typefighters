@@ -23,7 +23,6 @@
     'interference': 'retype the paragraph exactly while popups appear. staying accurate and keeping a steady speed will give the best score; close distractions quickly and keep typing.',
     'overload': 'for 30 seconds, press different keys quickly to fill the meter. fast and varied input gives more points and increases overcharge. repeating the same key gives very little score.'
 } %}
-} %}
 {% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
 {% set mode_instruction = mode_instruction_map.get(selected_mode, mode_instruction_map['classic']) %}
 {% set changing_name = request.args.get('change_name') == '1' %}
