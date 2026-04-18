@@ -6,7 +6,7 @@
     <title>typefighters</title>
     <link href="https://fonts.googleapis.com/css?family=Fira+Mono:400,700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260419b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260419d">
     <style>
     /* function for the slide-fade-in animation */
     #transition-blank {
@@ -26,6 +26,7 @@
         animation: slideFadeIn 1s cubic-bezier(0.4,0,0.2,1) forwards;
     }
     </style>
+    {% block style_overrides %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
     <div id="boot-loader" aria-hidden="true">

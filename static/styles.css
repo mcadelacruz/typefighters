@@ -1,16 +1,27 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
 body {
     background: #000;
     color: #fff;
     font-family: 'Space Grotesk', 'Fira Mono', 'Consolas', 'Menlo', monospace;
     min-height: 100vh;
+    min-height: 100dvh;
     margin: 0;
-    height: 100vh;
-    width: 100vw;
+    width: 100%;
     overflow-x: hidden;
     font-weight: 300;
     text-transform: lowercase;
+}
+
+#page-root {
+    min-height: 100vh;
+    min-height: 100dvh;
 }
 
 #boot-loader {
@@ -230,10 +241,13 @@ body.home-page.home-loader-ready #page-root {
 
 .center-root {
     min-height: 100vh;
-    min-width: 100vw;
+    min-height: 100dvh;
+    width: 100%;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: clamp(1rem, 3.5vw, 2.5rem) 0;
 }
 
 /* main content animation class */
@@ -245,6 +259,7 @@ body.home-page.home-loader-ready #page-root {
     width: 100%;
     max-width: 600px;
     margin: 0 auto;
+    padding: 0 clamp(1rem, 3vw, 2rem);
     opacity: 0;
     animation: slideFadeIn 1s cubic-bezier(0.4,0,0.2,1) forwards;
 }
@@ -265,7 +280,8 @@ body.home-page.home-loader-ready #page-root {
 }
 
 .menu-link {
-    display: block;
+    display: flex;
+    align-items: center;
     color: #333;
     background: none;
     border: none;
@@ -278,6 +294,7 @@ body.home-page.home-loader-ready #page-root {
     outline: none;
     border-radius: 4px;
     padding: 0.2rem 0.5rem;
+    min-height: 44px;
     transition: color 0.2s;
     font-weight: 300;
     text-transform: lowercase;
@@ -320,6 +337,7 @@ body.home-page.home-loader-ready #page-root {
 .highscores-meta {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 1rem;
     margin: 0.15rem 0 1rem 0;
     font-size: 0.88rem;
@@ -328,6 +346,13 @@ body.home-page.home-loader-ready #page-root {
 
 .highscores-table-wrap {
     margin-bottom: 1rem;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.highscores-table-wrap table {
+    min-width: 760px;
 }
 
 .highscores-table-wrap table th,
@@ -363,6 +388,7 @@ body.home-page.home-loader-ready #page-root {
 .score-page-link {
     min-width: 2.25rem;
     text-align: center;
+    justify-content: center;
 }
 
 .score-page-number-active {
@@ -412,6 +438,8 @@ body.home-page.home-loader-ready #page-root {
 
 #game-box {
     position: relative;
+    width: 100%;
+    max-width: 100%;
     overflow: hidden;
     transition: color 0.25s ease, text-shadow 0.25s ease;
 }
@@ -1004,6 +1032,7 @@ body.home-page.home-loader-ready #page-root {
 
 .interference-captcha-submit {
     width: 100%;
+    justify-content: center;
     text-align: center;
     border: 1px solid rgba(255, 255, 255, 0.18);
     padding: 0.45rem 0.4rem;
@@ -1157,7 +1186,7 @@ body.meltdown-active.meltdown-danger .meltdown-screen-vignette {
     user-select: none;
     pointer-events: none;
     text-align: left;
-    width: 350px;
+    width: min(350px, 100%);
     min-height: 2.7em;
     background: none;
     color: #fff;
@@ -1182,7 +1211,9 @@ body.meltdown-active.meltdown-danger .meltdown-screen-vignette {
 .stats-row {
     display: flex;
     justify-content: flex-start;
+    flex-wrap: wrap;
     gap: 2.5rem;
+    row-gap: 0.4rem;
     width: 100%;
     margin-bottom: 1.2rem;
     font-size: 1.1rem;
@@ -1294,93 +1325,93 @@ input:focus, .form-control:focus {
 ::placeholder { color: #aaa; }
 
 .responsive-table {
-    width: 100%;}
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
 
 .responsive-table table {
     width: 100%;
+    min-width: 620px;
     border-collapse: collapse;
 }
 
 @media (max-width: 600px) {
-    .menu-title {
-        font-size: 1.5rem;
+    .center-root {
+        align-items: stretch;
+        padding-top: 0;
+        padding-bottom: 0;
     }
-    .menu-link,
-    .menu-link:visited {
-        font-size: 1.1rem;
-    }
-    .word-display {
-        width: 95vw;
-        font-size: 1.5rem;
-        min-height: 2em;
-        margin-left: 0.5rem;
-        margin-right: 0.5rem;
-    }
-    .stats-row {
-        font-size: 0.95rem;
-        gap: 1.2rem;
-    }
-    .final-stats {
-        font-size: 1rem;
-        padding: 0.7rem 0.5rem;
-        margin-left: 0.5rem;
-        margin-right: 0.5rem;
-    }
-    input, .form-control {
-        font-size: 1rem;
-        width: 95vw;
-        padding: 0.5rem 0.7rem;
-        margin-left: 0.5rem;
-        margin-right: 0.5rem;
-    }
-    a, .link-btn {
-        font-size: 1rem;
-    }
+
     .center-content {
-        max-width: 98vw;
+        max-width: 100%;
+        min-height: 100dvh;
         padding-left: 1rem;
         padding-right: 1rem;
-        margin-left: 2vw;
-        margin-right: 2vw;
-        align-items: center;
-        text-align: center;
-    }
-    .center-content > * {
-        margin-left: auto !important;
-        margin-right: auto !important;
-        text-align: center !important;
-        align-self: center !important;
-        display: block;
+        padding-top: max(1rem, env(safe-area-inset-top));
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        justify-content: center;
+        align-items: flex-start;
+        text-align: left;
     }
 
-    .menu-title,
-    .stats-row,
-    .final-stats,
-    .word-display,
-    input, .form-control,
-    a, .link-btn,
-    .mt-3,
-    #game-over-reason {
-        text-align: center !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-        align-self: center !important;
-        display: block;
+    .menu-title {
+        font-size: 1.6rem;
+        margin-bottom: 1.4rem;
     }
-    .word-display,
-    input, .form-control {
-        width: 90vw;
-        max-width: 100%;
+
+    .menu-link,
+    .menu-link:visited {
+        font-size: 1.06rem;
+        margin: 0.55rem 0;
+    }
+
+    .score-tab {
+        padding: 0.35rem 0.55rem;
+    }
+
+    .highscores-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+    }
+
+    .word-display {
+        width: 100%;
+        font-size: 1.5rem;
+        min-height: 2.2em;
+        margin: 1rem 0 0.85rem 0;
     }
 
     .stats-row {
-        justify-content: center;
-        gap: 1.2rem;
+        font-size: 0.95rem;
+        gap: 1rem 1.35rem;
+        justify-content: flex-start;
+    }
+
+    .final-stats {
+        font-size: 1rem;
+        padding: 0.75rem 0.4rem;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    input, .form-control {
+        font-size: 1rem;
         width: 100%;
+        max-width: none;
+        padding: 0.6rem 0.75rem;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    a, .link-btn {
+        font-size: 1rem;
     }
 
     .meltdown-hud {
         flex-direction: column;
+        align-items: flex-start;
         gap: 0.55rem;
     }
 
@@ -1390,55 +1421,44 @@ input:focus, .form-control:focus {
 
     .flow-gauge {
         width: 100%;
-        text-align: center;
+    }
+
+    .flow-tempo-scale {
+        font-size: 0.72rem;
+    }
+
+    .interference-paragraph,
+    .interference-target {
+        min-height: 160px;
+        font-size: 0.98rem;
+        line-height: 1.55;
+        padding: 0.8rem;
     }
 
     .meltdown-round-timer {
         font-size: 1.65rem;
     }
 
-    .menu-link,
-    .word-display,
-    .mt-3 {
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-        text-align: center !important;
-    }
-
     .game-mode-banner {
-        align-self: center;
-        text-align: center;
-        border-left: none;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.6);
-        padding-left: 0;
-        padding-bottom: 0.25rem;
+        align-self: flex-start;
+        margin-bottom: 0.45rem;
     }
 
     .mode-submenu {
-        margin-left: 0;
-        padding-left: 0;
-        border-left: none;
-        width: 100%;
-        text-align: center;
-    }
-
-    input, .form-control {
-        font-size: 1rem;
-        width: 70vw;
-        max-width: 300px;
-        padding: 0.5rem 0.7rem;
+        margin-left: 0.2rem;
+        padding-left: 0.7rem;
     }
 
     th, td {
-        font-size: 0.75rem !important;
-        padding: 0.4rem 0.5rem !important;
+        font-size: 0.78rem !important;
+        padding: 0.45rem 0.55rem !important;
+        white-space: nowrap;
     }
 
     #main-player-name-link.player-name-link {
-        bottom: 20px;
+        bottom: calc(env(safe-area-inset-bottom) + 12px);
         font-size: 0.95rem;
+        max-width: 92vw;
+        text-align: center;
     }
 }

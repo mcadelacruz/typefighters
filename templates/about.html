@@ -5,10 +5,11 @@
 <div>
     <div class="menu-title">about typefighters</div>
     <div style="max-width: 500px; text-align: left;">
-        <p>typefighters is a typing game. type words as fast and accurately as you can.</p>
-        <p>to play, type your name and then type <b>start</b> to begin. type the word shown below as quickly as possible. if you make a mistake, the game ends immediately. try to get the highest score you can!</p>
-        <br><p>developed by dela cruz, charles arvin p. for coe 003 - computational thinking with python</p>
-        <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">back to menu</button>
+        <p>typefighters is a multi-mode typing game focused on speed, accuracy, rhythm, and adaptability.</p>
+        <p>to play, enter your name, choose a mode, then type <b>start</b> to begin.</p>
+        <p>the game captures typing telemetry (dwell, flight, errors, pauses, speed) to be used for analytics and machine learning experiments.</p>
+        <br><p>developed by dela cruz, charles arvin p. for coe 005a - advance machine learning and deep learning</p>
+        <a class="menu-link" href="{{ url_for('menu') }}">back to menu</a>
     </div>
 </div>
 {% endblock %}

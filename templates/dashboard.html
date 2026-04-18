@@ -242,7 +242,12 @@
     .dashboard-table table {
         font-size: 0.85rem;
         width: 100%;
+        min-width: 620px;
         margin-bottom: 0;
+    }
+
+    .dashboard-section.full-width .dashboard-table table {
+        min-width: 760px;
     }
     
     .dashboard-table th {
@@ -341,6 +346,35 @@
     
     .dashboard-actions .menu-link {
         margin: 0;
+    }
+
+    @media (max-width: 700px) {
+        .dashboard-header {
+            gap: 0.8rem;
+            margin: 1.25rem 0 1.8rem 0;
+            flex-wrap: wrap;
+        }
+
+        .section-header {
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+        }
+
+        .top-players-list {
+            gap: 1.2rem;
+        }
+
+        .players-ol {
+            font-size: 0.95rem;
+        }
+
+        .dashboard-actions {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.45rem;
+            margin-top: 1.2rem;
+            padding-top: 1rem;
+        }
     }
 </style>
 {% endblock %}
