@@ -20,7 +20,7 @@
     'classic': 'type each word and press enter. typing faster and making fewer mistakes will give you more points.',
     'meltdown': 'type the long word and press enter before time runs out. typing it correctly and quickly will give you more points, while mistakes or running out of time will cost you lives.',
     'flow-state': 'type the underlined word and try to keep your speed close to the target wpm for a higher score. typing much faster or slower than the target will give you fewer points.',
-    'interference': 'retype the paragraph exactly while popups appear. staying accurate and keeping a steady speed will give the best score; close distractions quickly and keep typing.',
+    'interference': 'retype the paragraph exactly while popups appear. staying accurate and keeping a steady speed will give the best score. close distractions quickly and keep typing.',
     'overload': 'for 30 seconds, press different keys quickly to fill the meter. fast and varied input gives more points and increases overcharge. repeating the same key gives very little score.'
 } %}
 {% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
@@ -39,6 +39,7 @@
         <div class="menu-title mb-4">type <span style="color:#fff;">start</span> to begin</div>
         <div id="mode-start-instructions" class="mb-3" style="max-width:56ch;font-size:0.95rem;line-height:1.4;color:rgba(255,255,255,0.86);">{{ mode_instruction }}</div>
         <input type="text" id="start-input" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">back to menu</button>
     </div>
     <div id="step-game" style="display:none;flex-direction:column;align-items:flex-start;width:100%;">
         <div class="stats-row mb-2">
