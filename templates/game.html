@@ -17,11 +17,12 @@
     'overload': 'overload'
 } %}
 {% set mode_instruction_map = {
-    'classic': 'type each word and press enter. typing faster and making fewer mistakes gives more points.',
-    'meltdown': 'type the long word and press enter before time runs out. correct fast entries add score; mistakes or timeout remove lives.',
-    'flow-state': 'type the underlined word. stay close to the target wpm to score better; going too fast or too slow gives fewer points.',
-    'interference': 'retype the paragraph exactly while popups appear. good accuracy and steady speed score best; close distractions quickly and keep typing.',
-    'overload': 'for 30 seconds, press different keys quickly to fill the meter. fast varied input scores more and raises overcharge; repeating the same character gives little score.'
+    'classic': 'type each word and press enter. typing faster and making fewer mistakes will give you more points.',
+    'meltdown': 'type the long word and press enter before time runs out. typing it correctly and quickly will give you more points, while mistakes or running out of time will cost you lives.',
+    'flow-state': 'type the underlined word and try to keep your speed close to the target wpm for a higher score. typing much faster or slower than the target will give you fewer points.',
+    'interference': 'retype the paragraph exactly while popups appear. staying accurate and keeping a steady speed will give the best score; close distractions quickly and keep typing.',
+    'overload': 'for 30 seconds, press different keys quickly to fill the meter. fast and varied input gives more points and increases overcharge. repeating the same key gives very little score.'
+} %}
 } %}
 {% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
 {% set mode_instruction = mode_instruction_map.get(selected_mode, mode_instruction_map['classic']) %}
@@ -129,5 +130,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='telemetry.js') }}?v=20260418d"></script>
-<script src="{{ url_for('static', filename='game.js') }}?v=20260419h"></script>
+<script src="{{ url_for('static', filename='game.js') }}?v=20260419i"></script>
 {% endblock %}

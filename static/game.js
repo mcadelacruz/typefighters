@@ -76,8 +76,8 @@ const FLOW_MARQUEE_ANCHOR_RATIO = 0.24;
 const INTERFERENCE_GLOBAL_SECONDS = 120;
 const INTERFERENCE_MIN_DELAY = 5000;
 const INTERFERENCE_MAX_DELAY = 10000;
-const INTERFERENCE_PARAGRAPH = "In the glass hallway, the monitors kept scrolling soft reminders about deadlines, but the room itself felt strangely calm. A notebook lay open beside a mug, a pencil, and a stack of typed pages that had been corrected twice already. The exercise was simple enough in theory: keep your hands moving, trust the rhythm, and let the words arrive without fighting them. Outside, footsteps passed, the air conditioner hummed, and a bright red cursor blinked like a metronome.";
-const MELTDOWN_WORDS = [
+const DEFAULT_INTERFERENCE_PARAGRAPH = "In the glass hallway, the monitors kept scrolling soft reminders about deadlines, but the room itself felt strangely calm. A notebook lay open beside a mug, a pencil, and a stack of typed pages that had been corrected twice already. The exercise was simple enough in theory: keep your hands moving, trust the rhythm, and let the words arrive without fighting them. Outside, footsteps passed, the air conditioner hummed, and a bright red cursor blinked like a metronome.";
+const DEFAULT_MELTDOWN_WORDS = [
     "counterintelligence",
     "neurotransmitter",
     "inconsequentialities",
@@ -99,6 +99,70 @@ const MELTDOWN_WORDS = [
     "spectrophotometer",
     "anticonstitutional"
 ];
+const DEFAULT_FLOW_WORDS = [
+    'steady', 'rhythm', 'tempo', 'baseline', 'typing', 'motion',
+    'cadence', 'signal', 'pattern', 'focus', 'breath', 'flow'
+];
+const MODE_CONTENT_PATHS = {
+    meltdownWords: '/static/data/meltdown_words.json',
+    flowWords: '/static/data/flow_words.json',
+    interferenceParagraphs: '/static/data/interference_paragraphs.json'
+};
+
+let modeContentLoadPromise = null;
+let meltdownWordPool = [...DEFAULT_MELTDOWN_WORDS];
+let flowWordPool = [...DEFAULT_FLOW_WORDS];
+let interferenceParagraphPool = [DEFAULT_INTERFERENCE_PARAGRAPH];
+
+function sanitizeStringArray(items) {
+    if (!Array.isArray(items)) return [];
+    return items
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item) => item.length > 0);
+}
+
+function pickRandomItem(items, fallback) {
+    if (Array.isArray(items) && items.length) {
+        const idx = Math.floor(Math.random() * items.length);
+        return items[idx];
+    }
+    return fallback;
+}
+
+async function fetchModeContentArray(path, key, fallback) {
+    try {
+        const response = await fetch(path, { cache: 'no-store' });
+        if (!response.ok) return fallback;
+        const payload = await response.json();
+        const values = sanitizeStringArray(payload?.[key]);
+        return values.length ? values : fallback;
+    } catch (err) {
+        return fallback;
+    }
+}
+
+async function loadModeContentLibraries() {
+    const [meltdownWords, flowWords, interferenceParagraphs] = await Promise.all([
+        fetchModeContentArray(MODE_CONTENT_PATHS.meltdownWords, 'words', DEFAULT_MELTDOWN_WORDS),
+        fetchModeContentArray(MODE_CONTENT_PATHS.flowWords, 'words', DEFAULT_FLOW_WORDS),
+        fetchModeContentArray(MODE_CONTENT_PATHS.interferenceParagraphs, 'paragraphs', [DEFAULT_INTERFERENCE_PARAGRAPH])
+    ]);
+
+    meltdownWordPool = meltdownWords;
+    flowWordPool = flowWords;
+    interferenceParagraphPool = interferenceParagraphs;
+}
+
+function ensureModeContentLibrariesLoaded() {
+    if (!modeContentLoadPromise) {
+        modeContentLoadPromise = loadModeContentLibraries();
+    }
+    return modeContentLoadPromise;
+}
+
+function pickInterferenceParagraph() {
+    return pickRandomItem(interferenceParagraphPool, DEFAULT_INTERFERENCE_PARAGRAPH);
+}
 
 function resolveMode(rawMode) {
     const mode = (rawMode || "classic").toLowerCase();
@@ -134,8 +198,7 @@ function isOverloadMode() {
 }
 
 function pickMeltdownWord() {
-    const idx = Math.floor(Math.random() * MELTDOWN_WORDS.length);
-    return MELTDOWN_WORDS[idx];
+    return pickRandomItem(meltdownWordPool, DEFAULT_MELTDOWN_WORDS[0]);
 }
 
 function clearMeltdownRoundTimer() {
@@ -362,10 +425,7 @@ function setupModeHud() {
 }
 
 function initFlowMarquee() {
-    const source = [
-        'steady', 'rhythm', 'tempo', 'baseline', 'typing', 'motion',
-        'cadence', 'signal', 'pattern', 'focus', 'breath', 'flow'
-    ];
+    const source = flowWordPool.length ? flowWordPool : DEFAULT_FLOW_WORDS;
 
     flowMarqueeWords = [];
     for (let i = 0; i < 42; i += 1) {
@@ -515,10 +575,7 @@ function startFlowMeterAnimation() {
 }
 
 function extendFlowWords(minAdditionalWords = 24) {
-    const source = [
-        'steady', 'rhythm', 'tempo', 'baseline', 'typing', 'motion',
-        'cadence', 'signal', 'pattern', 'focus', 'breath', 'flow'
-    ];
+    const source = flowWordPool.length ? flowWordPool : DEFAULT_FLOW_WORDS;
 
     for (let i = 0; i < minAdditionalWords; i += 1) {
         flowMarqueeWords.push(source[Math.floor(Math.random() * source.length)]);
@@ -1021,7 +1078,7 @@ function resetAllModeState() {
     flowTempoPoints = 0;
     flowWordPoints = 0;
 
-    interferenceParagraphText = INTERFERENCE_PARAGRAPH;
+    interferenceParagraphText = pickInterferenceParagraph();
     interferenceModalOpen = false;
     interferenceModalShownAt = 0;
     interferenceDistractionTimeout = null;
@@ -1120,6 +1177,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (modeLabelEl) modeLabelEl.textContent = currentModeLabel.toLowerCase();
     setupModeHud();
     configureModeInputs();
+    ensureModeContentLibrariesLoaded();
 
     // this is for the name step
     document.getElementById('name-next-btn').onclick = function() {
@@ -1147,8 +1205,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter') document.getElementById('name-next-btn').click();
     });
 
-    document.getElementById('start-input').addEventListener('keydown', function(e) {
+    document.getElementById('start-input').addEventListener('keydown', async function(e) {
         if (e.key === 'Enter' && this.value.trim().toLowerCase() === 'start') {
+            await ensureModeContentLibrariesLoaded();
             transitionStep('step-start', 'step-game', function() {
                 startGame();
             });
@@ -1530,7 +1589,8 @@ async function finalizeGame(result) {
     });
 }
 
-function startGame() {
+async function startGame() {
+    await ensureModeContentLibrariesLoaded();
     gameEnded = false;
     resetAllModeState();
 
@@ -1626,7 +1686,7 @@ function startGame() {
         document.getElementById('last-speed').textContent = '0';
 
         if (interferenceParagraph) {
-            interferenceParagraph.textContent = INTERFERENCE_PARAGRAPH;
+            interferenceParagraph.textContent = interferenceParagraphText;
         }
 
         interferenceTypedIndex = 0;

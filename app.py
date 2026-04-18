@@ -37,8 +37,24 @@ def ensure_schema():
 
 ensure_schema()
 
+DATA_BANK_DIR = os.path.join(app.static_folder, 'data')
+
+
+def load_words_from_bank(file_name, fallback):
+    file_path = os.path.join(DATA_BANK_DIR, file_name)
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+        words = payload.get('words', []) if isinstance(payload, dict) else []
+        cleaned = [str(word).strip() for word in words if isinstance(word, str) and str(word).strip()]
+        if cleaned:
+            return cleaned
+    except (OSError, ValueError, TypeError):
+        pass
+    return fallback
+
 # this is the list of words for the typing game
-WORD_LIST = [
+WORD_LIST = load_words_from_bank('classic_words.json', fallback=[
     "apple", "banana", "orange", "grapes", "cherry", "antidisestablishmentarianism",
     "pneumonoultramicroscopicsilicovolcanoconiosis", "hippopotomonstrosesquippedaliophobia",
     "supercalifragilisticexpialidocious", "incomprehensibilities", "parasternocleidomastoid",
@@ -120,7 +136,7 @@ WORD_LIST = [
     "immunomodulating", "ultrarevolutionary", "photosensitivities", "indeterminatenesses",
     "counterexplanation", "antiepileptically", "counterinfluences", "photosynthetically",
     "microcircuitry", "interconnectivity", "counterinhibition"
-]
+])
 
 # this will store all the active game sessions
 active_sessions = {}
