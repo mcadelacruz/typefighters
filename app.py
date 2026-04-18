@@ -187,11 +187,9 @@ def build_final_stats(game_mode, payload, mode_stats=None):
         ]
 
     if mode_name == 'Overload':
-        keystrokes = _coerce_int(data.get('keystrokes') or data.get('total_attempts'))
         keys_per_second = _coerce_float(data.get('keys_per_second'))
         bonus_multiplier = _coerce_int(data.get('bonus_multiplier'), 1)
         return [
-            {'label': 'keystrokes', 'value': str(keystrokes)},
             {'label': 'keys per second', 'value': f'{keys_per_second:.2f}'},
             {'label': 'overcharge bonus', 'value': f'x{bonus_multiplier} active' if bonus_multiplier > 1 else 'none'}
         ]
@@ -253,6 +251,8 @@ def highscores():
 
     start_index = (page - 1) * page_size
     scores = all_scores[start_index:start_index + page_size]
+    stat_headers = build_final_stats(MODE_LABEL_MAP[selected_mode], {})
+    stat_labels = [header['label'] for header in stat_headers]
     leaderboard_rows = []
     for index, row in enumerate(scores, start=start_index + 1):
         try:
@@ -263,10 +263,22 @@ def highscores():
         if not final_stats:
             final_stats = build_final_stats(row.game_mode, row.to_dict())
 
+        stat_map = {}
+        for stat in final_stats:
+            if isinstance(stat, dict) and 'label' in stat and 'value' in stat:
+                stat_map[str(stat['label'])] = str(stat['value'])
+
+        normalized_stats = []
+        for label in stat_labels:
+            normalized_stats.append({
+                'label': label,
+                'value': stat_map.get(label, '-')
+            })
+
         leaderboard_rows.append({
             'rank': index,
             'score': row,
-            'final_stats': final_stats
+            'final_stats': normalized_stats
         })
 
     return render_template(
@@ -275,7 +287,7 @@ def highscores():
         selected_mode=selected_mode,
         selected_mode_label=MODE_LABEL_MAP[selected_mode],
         mode_tabs=mode_tabs,
-        stat_headers=build_final_stats(MODE_LABEL_MAP[selected_mode], {}),
+        stat_headers=stat_headers,
         page=page,
         total_pages=total_pages,
         total_scores=total_scores

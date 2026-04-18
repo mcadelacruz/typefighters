@@ -56,6 +56,7 @@ let interferenceChallengeType = 'x';
 let interferenceCaptchaCode = '';
 let interferenceBestWpm = 0;
 const OVERLOAD_TARGET = 800;
+const OVERLOAD_GLOBAL_SECONDS = 30;
 const PLAYER_NAME_STORAGE_KEY = "typefighters_player_name";
 const MELTDOWN_ROUND_MS = 10000;
 const MELTDOWN_STARTING_LIVES = 3;
@@ -1426,14 +1427,15 @@ function renderFinalStats(result) {
         const bonusMultiplier = Number(result.bonus_multiplier || (keystrokes >= OVERLOAD_TARGET ? 2 : 1));
         const keysPerSecond = Number(result.keys_per_second || 0).toFixed(2);
 
-        stat1Label.textContent = 'keystrokes';
-        stat1Value.textContent = String(keystrokes);
+        stat1Label.textContent = 'keys per second';
+        stat1Value.textContent = String(keysPerSecond);
 
-        stat2Label.textContent = 'keys per second';
-        stat2Value.textContent = String(keysPerSecond);
+        stat2Label.textContent = 'overcharge bonus';
+        stat2Value.textContent = bonusMultiplier > 1 ? `x${bonusMultiplier} active` : 'none';
 
-        stat3Label.textContent = 'overcharge bonus';
-        stat3Value.textContent = bonusMultiplier > 1 ? `x${bonusMultiplier} active` : 'none';
+        stat3Label.textContent = '';
+        stat3Value.textContent = '';
+        stat3Row.setAttribute('hidden', 'hidden');
         return;
     }
 
@@ -1563,9 +1565,9 @@ function startGame() {
 
     if (isOverloadMode()) {
         sessionId = null;
-        timeLeft = 10;
+        timeLeft = OVERLOAD_GLOBAL_SECONDS;
         document.getElementById('score').textContent = '0';
-        document.getElementById('time-left').textContent = '10';
+        document.getElementById('time-left').textContent = String(OVERLOAD_GLOBAL_SECONDS);
         wordInput.placeholder = 'mash any keys as fast as possible';
         setOverloadProgress();
         timerInterval = setInterval(updateTimer, 1000);
@@ -1777,7 +1779,7 @@ function updateTimer() {
                 avg_speed: 0,
                 keystrokes: overloadKeystrokes,
                 bonus_multiplier: bonusMultiplier,
-                keys_per_second: overloadKeystrokes / 10
+                keys_per_second: overloadKeystrokes / OVERLOAD_GLOBAL_SECONDS
             });
             return;
         }

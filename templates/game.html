@@ -112,7 +112,7 @@
             <div id="final-stat-3-row"><span id="final-stat-3-label">result</span>: <span id="final-stat-3-value"></span></div>
         </div>
         <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}?mode={{ selected_mode }}'">play again</button>
-        <button class="menu-link" onclick="window.location.href='{{ url_for('highscores') }}'">high scores</button>
+        <button class="menu-link" onclick="window.location.href='{{ url_for('highscores', mode=selected_mode) }}'">high scores</button>
         <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">menu</button>
     </div>
 </div>
@@ -120,5 +120,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='telemetry.js') }}?v=20260418d"></script>
-<script src="{{ url_for('static', filename='game.js') }}?v=20260419g"></script>
+<script src="{{ url_for('static', filename='game.js') }}?v=20260419h"></script>
 {% endblock %}
