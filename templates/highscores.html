@@ -2,60 +2,60 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div>
+<div class="highscores-layout">
     <div class="menu-title">typefighters high scores</div>
-    <div class="score-tabs" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+    <div class="score-tabs">
         {% for slug, label in mode_tabs %}
-        <a class="menu-link score-tab{% if selected_mode == slug %} score-tab-active{% endif %}" href="{{ url_for('highscores', mode=slug) }}">{{ label }}</a>
+        <a class="menu-link score-tab{% if selected_mode == slug %} score-tab-active{% endif %}" href="{{ url_for('highscores', mode=slug, page=1) }}">{{ label }}</a>
         {% endfor %}
     </div>
-    <div style="width: 100%; max-width: 600px;">
-        <!-- Only the top 10 highest scores, descending order -->
+
+    <div class="highscores-meta">
+        <div class="highscores-meta-item">showing top 100 for {{ selected_mode_label }}</div>
+        <div class="highscores-meta-item">page {{ page }} of {{ total_pages }}</div>
+    </div>
+
+    <div class="responsive-table highscores-table-wrap">
         <table>
             <thead>
                 <tr>
                     <th>rank</th>
                     <th>name</th>
-                    <th>mode</th>
                     <th>score</th>
-                    {% if selected_mode == 'flow-state' or selected_mode == 'interference' or selected_mode == 'overload' %}
-                    <th>pace metric</th>
-                    <th>volume metric</th>
-                    {% else %}
-                    <th>avg speed (ms)</th>
-                    <th>words</th>
-                    {% endif %}
+                    {% for header in stat_headers %}
+                    <th>{{ header.label }}</th>
+                    {% endfor %}
                 </tr>
             </thead>
             <tbody>
-                {% for score in scores %}
+                {% for item in leaderboard_rows %}
                 <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ score.name }}</td>
-                    <td>{{ score.game_mode }}</td>
-                    <td>{{ score.score }}</td>
-                    {% if selected_mode == 'flow-state' %}
-                    <td>{{ "%.2f"|format(score.avg_speed) }} wpm</td>
-                    <td>{{ score.words_typed }} sweet sec</td>
-                    {% elif selected_mode == 'interference' %}
-                    <td>{{ "%.2f"|format(score.avg_speed) }} wpm</td>
-                    <td>{{ score.words_typed }} reactions</td>
-                    {% elif selected_mode == 'overload' %}
-                    <td>{{ "%.2f"|format(score.avg_speed) }} pace</td>
-                    <td>{{ score.words_typed }} chunks</td>
-                    {% else %}
-                    <td>{{ "%.2f"|format(score.avg_speed) }}</td>
-                    <td>{{ score.words_typed }}</td>
-                    {% endif %}
+                    <td>{{ item.rank }}</td>
+                    <td>{{ item.score.name }}</td>
+                    <td>{{ item.score.score }}</td>
+                    {% for stat in item.final_stats %}
+                    <td>{{ stat.value }}</td>
+                    {% endfor %}
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-center">no high scores yet.</td>
+                    <td colspan="{{ 3 + stat_headers|length }}" class="text-center">no high scores yet.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+
+    <div class="score-pagination">
+        <a class="menu-link score-page-link{% if page <= 1 %} is-disabled{% endif %}" href="{{ url_for('highscores', mode=selected_mode, page=page-1) if page > 1 else '#' }}">prev</a>
+        <div class="score-page-numbers">
+            {% for page_number in range(1, total_pages + 1) %}
+            <a class="menu-link score-page-number{% if page_number == page %} score-page-number-active{% endif %}" href="{{ url_for('highscores', mode=selected_mode, page=page_number) }}">{{ page_number }}</a>
+            {% endfor %}
+        </div>
+        <a class="menu-link score-page-link{% if page >= total_pages %} is-disabled{% endif %}" href="{{ url_for('highscores', mode=selected_mode, page=page+1) if page < total_pages else '#' }}">next</a>
+    </div>
+
     <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">back to menu</button>
 </div>
 {% endblock %}

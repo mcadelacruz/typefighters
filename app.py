@@ -5,6 +5,7 @@ import json
 import uuid
 import csv
 import io
+import math
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session as flask_session, Response, stream_with_context
 from sqlalchemy import text, inspect
@@ -29,6 +30,8 @@ def ensure_schema():
             columns = {column['name'] for column in inspector.get_columns('high_score')}
             if 'game_mode' not in columns:
                 db.session.execute(text("ALTER TABLE high_score ADD COLUMN game_mode VARCHAR(20) NOT NULL DEFAULT 'Classic'"))
+            if 'final_stats_json' not in columns:
+                db.session.execute(text("ALTER TABLE high_score ADD COLUMN final_stats_json TEXT NOT NULL DEFAULT '[]'"))
                 db.session.commit()
 
 
@@ -122,6 +125,84 @@ WORD_LIST = [
 # this will store all the active game sessions
 active_sessions = {}
 
+MODE_TABS = [
+    ('classic', 'Classic'),
+    ('meltdown', 'Meltdown'),
+    ('flow-state', 'Flow State'),
+    ('interference', 'Interference'),
+    ('overload', 'Overload')
+]
+
+MODE_LABEL_MAP = {
+    'classic': 'Classic',
+    'meltdown': 'Meltdown',
+    'flow-state': 'Flow State',
+    'interference': 'Interference',
+    'overload': 'Overload'
+}
+
+
+def _coerce_int(value, default=0):
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_float(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def build_final_stats(game_mode, payload, mode_stats=None):
+    mode_name = str(game_mode or 'Classic').strip()
+    data = mode_stats if isinstance(mode_stats, dict) else payload
+
+    if mode_name == 'Meltdown':
+        return [
+            {'label': 'words cleared', 'value': str(_coerce_int(data.get('total_attempts') or data.get('words_cleared')))}
+        ]
+
+    if mode_name == 'Flow State':
+        tempo_points = _coerce_int(data.get('flow_tempo_points'))
+        word_points = _coerce_int(data.get('flow_word_points'))
+        on_target_seconds = _coerce_float(data.get('flow_on_target_seconds'))
+        avg_closeness_pct = _coerce_float(data.get('flow_avg_closeness_pct'))
+        return [
+            {'label': 'tempo points', 'value': str(tempo_points)},
+            {'label': 'word points', 'value': str(word_points)},
+            {'label': 'on-target seconds', 'value': f'{on_target_seconds:.1f}s ({avg_closeness_pct:.1f}% avg)'}
+        ]
+
+    if mode_name == 'Interference':
+        paragraph_wpm = _coerce_float(data.get('interference_wpm'))
+        reaction_bonus = _coerce_int(data.get('reaction_bonus'))
+        avg_reaction = _coerce_float(data.get('avg_reaction_time'))
+        return [
+            {'label': 'paragraph wpm', 'value': f'{paragraph_wpm:.2f}'},
+            {'label': 'reaction bonus', 'value': f'+{reaction_bonus}'},
+            {'label': 'avg reaction (ms)', 'value': f'{avg_reaction:.0f}'}
+        ]
+
+    if mode_name == 'Overload':
+        keystrokes = _coerce_int(data.get('keystrokes') or data.get('total_attempts'))
+        keys_per_second = _coerce_float(data.get('keys_per_second'))
+        bonus_multiplier = _coerce_int(data.get('bonus_multiplier'), 1)
+        return [
+            {'label': 'keystrokes', 'value': str(keystrokes)},
+            {'label': 'keys per second', 'value': f'{keys_per_second:.2f}'},
+            {'label': 'overcharge bonus', 'value': f'x{bonus_multiplier} active' if bonus_multiplier > 1 else 'none'}
+        ]
+
+    words_typed = _coerce_int(data.get('total_attempts') or data.get('words_typed'))
+    avg_speed = _coerce_float(data.get('avg_speed'))
+    return [
+        {'label': 'words typed', 'value': str(words_typed)},
+        {'label': 'average speed', 'value': f'{avg_speed:.2f} ms'}
+    ]
+
 @app.route('/')
 def index():
     # this shows the loading screen page
@@ -146,35 +227,58 @@ def about():
 def highscores():
     # this shows the high scores page
     mode_tabs = [
-        ('all', 'All'),
         ('classic', 'Classic'),
         ('meltdown', 'Meltdown'),
         ('flow-state', 'Flow State'),
         ('interference', 'Interference'),
         ('overload', 'Overload')
     ]
-    mode_label_map = {
-        'classic': 'Classic',
-        'meltdown': 'Meltdown',
-        'flow-state': 'Flow State',
-        'interference': 'Interference',
-        'overload': 'Overload'
-    }
 
-    selected_mode = (request.args.get('mode') or 'all').strip().lower()
+    selected_mode = (request.args.get('mode') or 'classic').strip().lower()
     if selected_mode not in {slug for slug, _ in mode_tabs}:
-        selected_mode = 'all'
+        selected_mode = 'classic'
 
-    query = HighScore.query
-    if selected_mode != 'all':
-        query = query.filter(HighScore.game_mode == mode_label_map[selected_mode])
+    page = _coerce_int(request.args.get('page'), 1)
+    if page < 1:
+        page = 1
 
-    scores = query.order_by(HighScore.score.desc(), HighScore.created_at.desc()).limit(10).all()
+    query = HighScore.query.filter(HighScore.game_mode == MODE_LABEL_MAP[selected_mode])
+    all_scores = query.order_by(HighScore.score.desc(), HighScore.created_at.desc()).limit(100).all()
+
+    page_size = 10
+    total_scores = len(all_scores)
+    total_pages = max(1, math.ceil(total_scores / page_size))
+    if page > total_pages:
+        page = total_pages
+
+    start_index = (page - 1) * page_size
+    scores = all_scores[start_index:start_index + page_size]
+    leaderboard_rows = []
+    for index, row in enumerate(scores, start=start_index + 1):
+        try:
+            final_stats = json.loads(row.final_stats_json or '[]')
+        except (TypeError, ValueError):
+            final_stats = []
+
+        if not final_stats:
+            final_stats = build_final_stats(row.game_mode, row.to_dict())
+
+        leaderboard_rows.append({
+            'rank': index,
+            'score': row,
+            'final_stats': final_stats
+        })
+
     return render_template(
         'highscores.html',
-        scores=scores,
+        leaderboard_rows=leaderboard_rows,
         selected_mode=selected_mode,
-        mode_tabs=mode_tabs
+        selected_mode_label=MODE_LABEL_MAP[selected_mode],
+        mode_tabs=mode_tabs,
+        stat_headers=build_final_stats(MODE_LABEL_MAP[selected_mode], {}),
+        page=page,
+        total_pages=total_pages,
+        total_scores=total_scores
     )
 
 @app.route('/api/start_game', methods=['POST'])
@@ -312,6 +416,7 @@ def api_save_telemetry():
 
     player_name = str(data.get('player_name', '')).strip()
     game_mode = str(data.get('game_mode', '')).strip()
+    mode_stats = data.get('mode_stats') if isinstance(data.get('mode_stats'), dict) else {}
 
     if not player_name or not game_mode:
         return jsonify({'error': 'player_name and game_mode are required'}), 400
@@ -343,13 +448,32 @@ def api_save_telemetry():
         total_keystrokes=total_keystrokes
     )
 
+    if game_mode == 'Classic':
+        db.session.add(telemetry_row)
+        db.session.commit()
+        return jsonify({'message': 'Telemetry saved', 'id': telemetry_row.id}), 201
+
     # Keep HighScore in sync per mode while telemetry is collected for ML training.
     high_score = HighScore(
         name=player_name,
         game_mode=game_mode,
         score=score,
         avg_speed=typing_speed_wpm,
-        words_typed=max(0, int(round(total_keystrokes / 5.0)))
+        words_typed=max(0, int(round(total_keystrokes / 5.0))),
+        final_stats_json=json.dumps(build_final_stats(game_mode, {
+            'avg_speed': typing_speed_wpm,
+            'total_attempts': max(0, int(round(total_keystrokes / 5.0))),
+            'flow_tempo_points': data.get('flow_tempo_points'),
+            'flow_word_points': data.get('flow_word_points'),
+            'flow_on_target_seconds': data.get('flow_on_target_seconds'),
+            'flow_avg_closeness_pct': data.get('flow_avg_closeness_pct'),
+            'interference_wpm': data.get('interference_wpm'),
+            'reaction_bonus': data.get('reaction_bonus'),
+            'avg_reaction_time': data.get('avg_reaction_time'),
+            'keystrokes': data.get('keystrokes'),
+            'keys_per_second': data.get('keys_per_second'),
+            'bonus_multiplier': data.get('bonus_multiplier')
+        }, mode_stats))
     )
 
     db.session.add(telemetry_row)
@@ -432,12 +556,17 @@ def save_high_score(session):
         return
         
     avg_speed = session['total_speed'] / session['total_attempts']
+    final_stats = build_final_stats(session.get('game_mode', 'Classic'), {
+        'total_attempts': session['total_attempts'],
+        'avg_speed': avg_speed
+    })
     high_score = HighScore(
         name=session['name'],
         game_mode=session.get('game_mode', 'Classic'),
         score=session['score'],
         avg_speed=avg_speed,
-        words_typed=session['total_attempts']
+        words_typed=session['total_attempts'],
+        final_stats_json=json.dumps(final_stats)
     )
     db.session.add(high_score)
     db.session.commit()

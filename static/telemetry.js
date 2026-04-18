@@ -155,13 +155,14 @@
         };
     }
 
-    async function sendTelemetry(playerName, gameMode, score) {
+    async function sendTelemetry(playerName, gameMode, score, modeStats) {
         const features = extractFeatures();
 
         const payload = {
             player_name: String(playerName || "").trim(),
             game_mode: String(gameMode || "").trim(),
             score: Number(score) || 0,
+            mode_stats: modeStats && typeof modeStats === "object" ? modeStats : {},
             ...features
         };
 

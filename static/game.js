@@ -67,8 +67,8 @@ const FLOW_WPM_MIN = 0;
 const FLOW_WPM_MAX = 100;
 const FLOW_ALLOWED_BAND = 15;
 const FLOW_SWEET_BAND = 3;
-const FLOW_WORD_POINTS = 50;
-const FLOW_TEMPO_TICK_POINTS = 10;
+const FLOW_WORD_POINTS = 12;
+const FLOW_TEMPO_TICK_POINTS = 1;
 const FLOW_WPM_WINDOW_MS = 5000;
 const FLOW_KEY_WINDOW_MS = 2500;
 const FLOW_MARQUEE_ANCHOR_RATIO = 0.24;
@@ -257,7 +257,7 @@ function updateMeltdownHud() {
 function handleMeltdownSuccess() {
     if (gameEnded) return;
     const remaining = Math.max(0, meltdownRoundDeadline - performance.now());
-    const bonus = Math.floor(remaining);
+    const bonus = Math.min(80, Math.floor(remaining / 100));
     const wordPoints = 50 + (meltdownCurrentWord.length * 2);
     meltdownScore += wordPoints + bonus;
     meltdownWordsCleared += 1;
@@ -804,7 +804,7 @@ function updateInterferenceScore() {
     const elapsedMinutes = elapsedMs / 60000;
     interferenceCurrentWpm = elapsedMinutes > 0 ? (interferenceTypedLength / 5) / elapsedMinutes : 0;
     interferenceBestWpm = Math.max(interferenceBestWpm, interferenceCurrentWpm);
-    interferenceBaseScore = Math.floor(interferenceCurrentWpm * 100);
+    interferenceBaseScore = Math.floor(interferenceCurrentWpm * 10);
 
     const totalScore = interferenceBaseScore + interferenceReactionBonus;
     const scoreElement = document.getElementById('score');
@@ -931,7 +931,7 @@ function closeInterferenceModal() {
     if (!interferenceModalOpen || gameEnded) return;
 
     const reactionTime = Math.max(1, Date.now() - interferenceModalShownAt);
-    const bonus = Math.floor(500000 / reactionTime);
+    const bonus = Math.min(120, Math.floor(50000 / reactionTime));
     interferenceReactionTimes.push(reactionTime);
     interferenceReactionBonus += bonus;
     interferenceReactionCount += 1;
@@ -1510,7 +1510,7 @@ async function finalizeGame(result) {
 
     try {
         if (typeof window.sendTelemetry === 'function') {
-            await window.sendTelemetry(playerName, currentModeLabel, result.score);
+            await window.sendTelemetry(playerName, currentModeLabel, result.score, result);
         }
     } catch (err) {
         console.error('Telemetry send failed:', err);

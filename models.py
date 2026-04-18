@@ -11,6 +11,7 @@ class HighScore(db.Model):
     score = db.Column(db.Integer, nullable=False)
     avg_speed = db.Column(db.Float, nullable=False)
     words_typed = db.Column(db.Integer, nullable=False)
+    final_stats_json = db.Column(db.Text, nullable=False, default='[]')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -24,7 +25,8 @@ class HighScore(db.Model):
             'game_mode': self.game_mode,
             'score': self.score,
             'avg_speed': self.avg_speed,
-            'words_typed': self.words_typed
+            'words_typed': self.words_typed,
+            'final_stats_json': self.final_stats_json
         }
 
 
