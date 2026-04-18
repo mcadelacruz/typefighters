@@ -6,7 +6,7 @@
     <title>typefighters</title>
     <link href="https://fonts.googleapis.com/css?family=Fira+Mono:400,700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260419b">
     <style>
     /* function for the slide-fade-in animation */
     #transition-blank {
@@ -42,6 +42,7 @@
             </div>
         </div>
     </div>
+    {% block screen_fx %}{% endblock %}
     <div id="page-root">
         <div class="center-root">
             <div class="center-content">
@@ -52,6 +53,6 @@
     </div>
     <div id="transition-blank"></div>
     {% block scripts %}{% endblock %}
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
+    <script src="{{ url_for('static', filename='main.js') }}?v=20260418d"></script>
 </body>
 </html>

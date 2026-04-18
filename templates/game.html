@@ -1,6 +1,11 @@
 <!-- this is the page for the gameplay -->
 {% extends "base.html" %}
 
+{% block screen_fx %}
+<div id="meltdown-screen-vignette" class="meltdown-screen-vignette" aria-hidden="true"></div>
+<div id="meltdown-screen-flash" class="meltdown-screen-flash" aria-hidden="true"></div>
+{% endblock %}
+
 {% block content %}
 {% set selected_mode_raw = (request.args.get('mode', 'classic') | lower) %}
 {% set selected_mode = 'flow-state' if selected_mode_raw == 'flow_state' else selected_mode_raw %}
@@ -12,9 +17,11 @@
     'overload': 'overload'
 } %}
 {% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
+{% set changing_name = request.args.get('change_name') == '1' %}
 <div id="game-box" class="game-mode-{{ selected_mode }}" data-game-mode="{{ selected_mode }}" style="width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-    <div id="meltdown-vignette" class="meltdown-vignette" aria-hidden="true"></div>
+    {% if not changing_name %}
     <div class="game-mode-banner mb-3">mode: <span id="current-mode-label">{{ mode_title }}</span></div>
+    {% endif %}
     <div id="step-name" style="display:flex;flex-direction:column;align-items:flex-start;width:100%;">
         <div class="menu-title mb-4">enter your name</div>
         <input type="text" id="player-name-input" maxlength="32" placeholder="your name" autofocus>
@@ -30,34 +37,68 @@
             <div>time left: <span id="time-left">120</span>s</div>
         </div>
         <div id="meltdown-hud" class="meltdown-hud" hidden>
-            <div class="meltdown-lives">lives: <span id="meltdown-lives-value">5</span></div>
+            <div class="meltdown-lives">lives: <span id="meltdown-lives-value">3</span></div>
             <div class="meltdown-round-timer"><span id="meltdown-round-timer-value">3.00</span>s</div>
         </div>
         <div id="flow-panel" class="flow-panel" hidden>
             <div class="flow-gauges">
-                <div class="flow-gauge">target wpm: <span id="flow-target-wpm">40</span></div>
+                <div class="flow-gauge">target wpm: <span id="flow-target-wpm">50</span></div>
                 <div class="flow-gauge">current wpm: <span id="flow-current-wpm">0</span></div>
+            </div>
+            <div id="flow-tempo-coach" class="flow-tempo-coach tempo-maintain" aria-live="polite">maintain this tempo</div>
+            <div class="flow-tempo-meter" aria-hidden="true">
+                <div id="flow-tempo-rail" class="flow-tempo-rail">
+                    <div id="flow-tempo-target-line" class="flow-tempo-target-line"></div>
+                    <div id="flow-tempo-player-block" class="flow-tempo-player-block"></div>
+                </div>
+                <div class="flow-tempo-scale">
+                    <span>0 wpm</span>
+                    <span>100 wpm</span>
+                </div>
             </div>
             <div class="flow-marquee-wrap" aria-hidden="true">
                 <div id="flow-marquee-track" class="flow-marquee-track"></div>
             </div>
-            <input type="text" id="flow-input" class="flow-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type continuously to match the rhythm">
+            <input type="text" id="flow-input" class="flow-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type the underlined word">
+            <div id="flow-submit-feedback" class="flow-submit-feedback" aria-live="polite">words submit automatically when correct</div>
         </div>
         <div id="interference-panel" class="interference-panel" hidden>
             <div class="interference-heading">retype the paragraph below</div>
-            <p id="interference-paragraph" class="interference-paragraph"></p>
-            <textarea id="interference-input" class="interference-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type the paragraph here"></textarea>
+            <div id="interference-paragraph" class="interference-paragraph" tabindex="0" role="textbox" aria-multiline="true" spellcheck="false"></div>
+        </div>
+        <div id="overload-panel" class="overload-panel" hidden>
+            <div id="overload-status" class="overload-status">powering up...</div>
+            <div class="overload-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div id="overload-meter-fill" class="overload-meter-fill"></div>
+            </div>
+            <div id="overload-percent" class="overload-percent">0%</div>
         </div>
         <div class="word-display" id="current-word"></div>
         <input type="text" id="word-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type the word here">
         <div class="mt-3" style="font-size:1rem; text-align:left;"><span id="live-metric-label">last word speed</span>: <span id="last-speed">-</span> <span id="live-metric-unit">ms</span></div>
     </div>
     <div id="interference-modal" class="interference-modal" hidden>
-        <div class="interference-modal-card">
-            <button id="interference-modal-close" class="interference-modal-close" type="button" aria-label="click the red x to continue">
-                <span class="interference-modal-x">X</span>
-                <span class="interference-modal-text">CLICK THE RED X TO CONTINUE</span>
-            </button>
+        <div id="interference-x-popup" class="interference-popup interference-x-popup" hidden>
+            <div class="interference-terminal-bar">
+                <span class="interference-terminal-title">terminal://interference</span>
+                <button id="interference-modal-close" class="interference-terminal-close" type="button" aria-label="close popup">×</button>
+            </div>
+            <div class="interference-modal-body">
+                <span class="interference-modal-text">click the red x to continue</span>
+                <pre id="interference-modal-taunt" class="interference-modal-taunt"></pre>
+            </div>
+        </div>
+        <div id="interference-captcha-popup" class="interference-popup interference-captcha-popup" hidden>
+            <div class="interference-terminal-bar">
+                <span class="interference-terminal-title">terminal://verify</span>
+                <button id="interference-captcha-close" class="interference-terminal-close" type="button" aria-label="close popup">×</button>
+            </div>
+            <div class="interference-modal-body">
+                <div class="interference-captcha-label">prove you are focused</div>
+                <div id="interference-captcha-code" class="interference-captcha-code">AB12</div>
+                <input id="interference-captcha-input" class="interference-captcha-input" type="text" maxlength="6" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type code">
+                <button id="interference-captcha-submit" class="menu-link interference-captcha-submit" type="button">submit</button>
+            </div>
         </div>
     </div>
     <div id="step-over" style="display:none;flex-direction:column;align-items:flex-start;width:100%;">
@@ -67,8 +108,8 @@
             <div>mode: <span id="final-mode">{{ mode_title }}</span></div>
             <div>final score: <span id="final-score"></span></div>
             <div><span id="final-stat-1-label">words typed</span>: <span id="final-stat-1-value"></span></div>
-            <div><span id="final-stat-2-label">average speed</span>: <span id="final-stat-2-value"></span></div>
-            <div><span id="final-stat-3-label">result</span>: <span id="final-stat-3-value"></span></div>
+            <div id="final-stat-2-row"><span id="final-stat-2-label">average speed</span>: <span id="final-stat-2-value"></span></div>
+            <div id="final-stat-3-row"><span id="final-stat-3-label">result</span>: <span id="final-stat-3-value"></span></div>
         </div>
         <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}?mode={{ selected_mode }}'">play again</button>
         <button class="menu-link" onclick="window.location.href='{{ url_for('highscores') }}'">high scores</button>
@@ -78,6 +119,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='telemetry.js') }}"></script>
-<script src="{{ url_for('static', filename='game.js') }}"></script>
+<script src="{{ url_for('static', filename='telemetry.js') }}?v=20260418d"></script>
+<script src="{{ url_for('static', filename='game.js') }}?v=20260419f"></script>
 {% endblock %}

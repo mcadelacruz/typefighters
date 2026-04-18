@@ -4,6 +4,11 @@
 {% block content %}
 <div>
     <div class="menu-title">typefighters high scores</div>
+    <div class="score-tabs" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        {% for slug, label in mode_tabs %}
+        <a class="menu-link score-tab{% if selected_mode == slug %} score-tab-active{% endif %}" href="{{ url_for('highscores', mode=slug) }}">{{ label }}</a>
+        {% endfor %}
+    </div>
     <div style="width: 100%; max-width: 600px;">
         <!-- Only the top 10 highest scores, descending order -->
         <table>
@@ -13,8 +18,13 @@
                     <th>name</th>
                     <th>mode</th>
                     <th>score</th>
+                    {% if selected_mode == 'flow-state' or selected_mode == 'interference' or selected_mode == 'overload' %}
+                    <th>pace metric</th>
+                    <th>volume metric</th>
+                    {% else %}
                     <th>avg speed (ms)</th>
                     <th>words</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -24,8 +34,19 @@
                     <td>{{ score.name }}</td>
                     <td>{{ score.game_mode }}</td>
                     <td>{{ score.score }}</td>
+                    {% if selected_mode == 'flow-state' %}
+                    <td>{{ "%.2f"|format(score.avg_speed) }} wpm</td>
+                    <td>{{ score.words_typed }} sweet sec</td>
+                    {% elif selected_mode == 'interference' %}
+                    <td>{{ "%.2f"|format(score.avg_speed) }} wpm</td>
+                    <td>{{ score.words_typed }} reactions</td>
+                    {% elif selected_mode == 'overload' %}
+                    <td>{{ "%.2f"|format(score.avg_speed) }} pace</td>
+                    <td>{{ score.words_typed }} chunks</td>
+                    {% else %}
                     <td>{{ "%.2f"|format(score.avg_speed) }}</td>
                     <td>{{ score.words_typed }}</td>
+                    {% endif %}
                 </tr>
                 {% else %}
                 <tr>

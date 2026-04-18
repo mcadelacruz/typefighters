@@ -10,7 +10,9 @@ let currentMode = "classic";
 let currentModeLabel = "Classic";
 let gameEnded = false;
 let overloadKeystrokes = 0;
-let meltdownLives = 5;
+let overloadLastCountedKey = '';
+let overloadSameKeyStreak = 0;
+let meltdownLives = 3;
 let meltdownScore = 0;
 let meltdownWordsCleared = 0;
 let meltdownRoundDeadline = 0;
@@ -21,13 +23,23 @@ let meltdownCurrentWord = "";
 let flowTargetWpm = 40;
 let flowCurrentWpm = 0;
 let flowScore = 0;
+let flowSubmissionHistory = [];
 let flowKeyTimestamps = [];
-let flowOutOfBandStreak = 0;
-let flowSweetStreak = 0;
-let flowSweetTotalSeconds = 0;
+let flowMarqueeWords = [];
+let flowMarqueeNextIndex = 0;
+let flowMarqueeOffsetX = 0;
+let flowOnTargetSeconds = 0;
+let flowClosenessAccumulator = 0;
 let flowElapsedSeconds = 0;
-let flowLastMultiplier = 1;
-let flowBestMultiplier = 1;
+let flowLastAccuracyPct = 0;
+let flowBestAccuracyPct = 0;
+let flowDisplayWpm = 0;
+let flowMeterRafId = null;
+let flowCoachState = 'maintain';
+let flowBlockVisualState = 'on';
+let flowScoreInterval = null;
+let flowTempoPoints = 0;
+let flowWordPoints = 0;
 let interferenceParagraphText = "";
 let interferenceModalOpen = false;
 let interferenceModalShownAt = 0;
@@ -39,17 +51,27 @@ let interferenceStartedAt = 0;
 let interferenceCurrentWpm = 0;
 let interferenceBaseScore = 0;
 let interferenceTypedLength = 0;
-const OVERLOAD_TARGET = 1000;
+let interferenceTypedIndex = 0;
+let interferenceChallengeType = 'x';
+let interferenceCaptchaCode = '';
+let interferenceBestWpm = 0;
+const OVERLOAD_TARGET = 800;
 const PLAYER_NAME_STORAGE_KEY = "typefighters_player_name";
-const MELTDOWN_ROUND_MS = 3000;
-const MELTDOWN_GLOBAL_SECONDS = 120;
-const MELTDOWN_STARTING_LIVES = 5;
-const MELTDOWN_SURVIVAL_BONUS = 5000;
+const MELTDOWN_ROUND_MS = 10000;
+const MELTDOWN_STARTING_LIVES = 3;
+const MELTDOWN_DANGER_THRESHOLD_MS = 5000;
 const FLOW_GLOBAL_SECONDS = 120;
-const FLOW_TARGET_START = 40;
+const FLOW_TARGET_START = 50;
 const FLOW_TARGET_SHIFT_SECONDS = 20;
-const FLOW_ALLOWED_BAND = 10;
-const FLOW_SWEET_BAND = 5;
+const FLOW_WPM_MIN = 0;
+const FLOW_WPM_MAX = 100;
+const FLOW_ALLOWED_BAND = 15;
+const FLOW_SWEET_BAND = 3;
+const FLOW_WORD_POINTS = 50;
+const FLOW_TEMPO_TICK_POINTS = 10;
+const FLOW_WPM_WINDOW_MS = 5000;
+const FLOW_KEY_WINDOW_MS = 2500;
+const FLOW_MARQUEE_ANCHOR_RATIO = 0.24;
 const INTERFERENCE_GLOBAL_SECONDS = 120;
 const INTERFERENCE_MIN_DELAY = 5000;
 const INTERFERENCE_MAX_DELAY = 10000;
@@ -81,6 +103,7 @@ function resolveMode(rawMode) {
     const mode = (rawMode || "classic").toLowerCase();
     if (mode === "meltdown") return "meltdown";
     if (mode === "flow-state" || mode === "flow_state") return "flow_state";
+    if (mode === "interference") return "interference";
     if (mode === "overload") return "overload";
     return "classic";
 }
@@ -131,14 +154,36 @@ function updateMeltdownRoundUI(remainingMs) {
     timerEl.textContent = formatMeltdownSeconds(remainingMs);
 }
 
-function triggerMeltdownFlash() {
+function setMeltdownDangerState(inDanger) {
     const gameBox = document.getElementById('game-box');
-    if (!gameBox) return;
-    gameBox.classList.remove('meltdown-flash');
-    void gameBox.offsetWidth;
-    gameBox.classList.add('meltdown-flash');
+    if (gameBox) gameBox.classList.toggle('meltdown-danger', inDanger);
+
+    const body = document.body;
+    if (body) body.classList.toggle('meltdown-danger', inDanger);
+
+    const vignette = document.getElementById('meltdown-screen-vignette');
+    if (!vignette) return;
+
+    if (inDanger) {
+        vignette.style.opacity = '1';
+        vignette.style.background = 'radial-gradient(circle at center, rgba(255, 0, 0, 0.02) 18%, rgba(140, 0, 0, 0.24) 58%, rgba(95, 0, 0, 0.42) 100%)';
+        vignette.style.animation = 'meltdownPulse 0.75s ease-in-out infinite';
+        return;
+    }
+
+    vignette.style.opacity = '0';
+    vignette.style.background = '';
+    vignette.style.animation = 'none';
+}
+
+function triggerMeltdownFlash() {
+    const body = document.body;
+    if (!body) return;
+    body.classList.remove('meltdown-flash');
+    void body.offsetWidth;
+    body.classList.add('meltdown-flash');
     setTimeout(() => {
-        gameBox.classList.remove('meltdown-flash');
+        body.classList.remove('meltdown-flash');
     }, 220);
 }
 
@@ -187,9 +232,13 @@ function startMeltdownRound() {
     meltdownRoundDeadline = performance.now() + MELTDOWN_ROUND_MS;
     updateMeltdownRoundUI(MELTDOWN_ROUND_MS);
 
+    setMeltdownDangerState(false);
+
     clearMeltdownRoundTimer();
     meltdownRoundInterval = setInterval(() => {
         const remaining = meltdownRoundDeadline - performance.now();
+        const inDanger = remaining <= MELTDOWN_DANGER_THRESHOLD_MS && remaining > 0;
+        setMeltdownDangerState(inDanger);
         if (remaining <= 0) {
             updateMeltdownRoundUI(0);
             handleMeltdownPenalty('timeout');
@@ -209,7 +258,8 @@ function handleMeltdownSuccess() {
     if (gameEnded) return;
     const remaining = Math.max(0, meltdownRoundDeadline - performance.now());
     const bonus = Math.floor(remaining);
-    meltdownScore += 100 + bonus;
+    const wordPoints = 50 + (meltdownCurrentWord.length * 2);
+    meltdownScore += wordPoints + bonus;
     meltdownWordsCleared += 1;
     document.getElementById('last-speed').textContent = String(bonus);
     updateMeltdownHud();
@@ -219,6 +269,8 @@ function handleMeltdownSuccess() {
 function handleMeltdownPenalty(type) {
     if (gameEnded || meltdownPenaltyLock) return;
     meltdownPenaltyLock = true;
+
+    setMeltdownDangerState(false);
 
     triggerMeltdownFlash();
     playMeltdownBuzz();
@@ -251,16 +303,19 @@ function setupModeHud() {
     const meltdownHud = document.getElementById('meltdown-hud');
     const flowPanel = document.getElementById('flow-panel');
     const interferencePanel = document.getElementById('interference-panel');
+    const overloadPanel = document.getElementById('overload-panel');
     const metricLabel = document.getElementById('live-metric-label');
     const metricUnit = document.getElementById('live-metric-unit');
 
-    if (!gameBox || !meltdownHud || !flowPanel || !interferencePanel || !metricLabel || !metricUnit) return;
+    if (!gameBox || !meltdownHud || !flowPanel || !interferencePanel || !overloadPanel || !metricLabel || !metricUnit) return;
 
     if (isMeltdownMode()) {
         meltdownHud.removeAttribute('hidden');
         flowPanel.setAttribute('hidden', 'hidden');
         interferencePanel.setAttribute('hidden', 'hidden');
+        overloadPanel.setAttribute('hidden', 'hidden');
         gameBox.classList.add('meltdown-active');
+        document.body.classList.add('meltdown-active');
         metricLabel.textContent = 'bonus from remaining ms';
         metricUnit.textContent = 'pts';
         return;
@@ -268,18 +323,22 @@ function setupModeHud() {
 
     meltdownHud.setAttribute('hidden', 'hidden');
     gameBox.classList.remove('meltdown-active');
+    document.body.classList.remove('meltdown-active', 'meltdown-danger', 'meltdown-flash');
+    setMeltdownDangerState(false);
 
     if (isFlowMode()) {
+        overloadPanel.setAttribute('hidden', 'hidden');
         flowPanel.removeAttribute('hidden');
         interferencePanel.setAttribute('hidden', 'hidden');
-        metricLabel.textContent = 'sweet spot combo';
-        metricUnit.textContent = 'x';
+        metricLabel.textContent = 'tempo accuracy';
+        metricUnit.textContent = '%';
         return;
     }
 
     flowPanel.setAttribute('hidden', 'hidden');
 
     if (isInterferenceMode()) {
+        overloadPanel.setAttribute('hidden', 'hidden');
         interferencePanel.removeAttribute('hidden');
         metricLabel.textContent = 'reaction bonus';
         metricUnit.textContent = 'pts';
@@ -289,58 +348,355 @@ function setupModeHud() {
     interferencePanel.setAttribute('hidden', 'hidden');
 
     if (isOverloadMode()) {
+        overloadPanel.removeAttribute('hidden');
         metricLabel.textContent = 'keystrokes';
         metricUnit.textContent = '';
         return;
     }
+
+    overloadPanel.setAttribute('hidden', 'hidden');
 
     metricLabel.textContent = 'last word speed';
     metricUnit.textContent = 'ms';
 }
 
 function initFlowMarquee() {
-    const track = document.getElementById('flow-marquee-track');
-    if (!track) return;
-
     const source = [
         'steady', 'rhythm', 'tempo', 'baseline', 'typing', 'motion',
         'cadence', 'signal', 'pattern', 'focus', 'breath', 'flow'
     ];
 
-    const words = [];
+    flowMarqueeWords = [];
     for (let i = 0; i < 42; i += 1) {
-        words.push(source[Math.floor(Math.random() * source.length)]);
+        flowMarqueeWords.push(source[Math.floor(Math.random() * source.length)]);
     }
-    track.textContent = words.join('   ');
+    flowMarqueeNextIndex = 0;
+    flowMarqueeOffsetX = 0;
+    renderFlowMarquee(true);
+    updateFlowCoach('maintain', 'maintain this tempo');
+    setFlowSubmitFeedback('words submit automatically when correct', 'ok');
+    updateFlowMeterTargetLine();
+    updateFlowMeterPlayerBlock();
+}
+
+function flowWpmToRatio(wpm) {
+    const clamped = Math.min(FLOW_WPM_MAX, Math.max(FLOW_WPM_MIN, wpm));
+    return (clamped - FLOW_WPM_MIN) / (FLOW_WPM_MAX - FLOW_WPM_MIN);
+}
+
+function updateFlowMeterTargetLine() {
+    const targetLine = document.getElementById('flow-tempo-target-line');
+    if (!targetLine) return;
+    const ratio = flowWpmToRatio(flowTargetWpm);
+    targetLine.style.left = `${ratio * 100}%`;
+}
+
+function updateFlowMeterPlayerBlock() {
+    const rail = document.getElementById('flow-tempo-rail');
+    const block = document.getElementById('flow-tempo-player-block');
+    if (!rail || !block) return null;
+
+    const allowableRatio = Math.min(1, (FLOW_ALLOWED_BAND * 2) / (FLOW_WPM_MAX - FLOW_WPM_MIN));
+    const blockWidth = rail.clientWidth * allowableRatio;
+    block.style.width = `${blockWidth}px`;
+
+    const ratio = flowWpmToRatio(flowDisplayWpm);
+    const centerX = ratio * rail.clientWidth;
+    const halfWidth = block.offsetWidth / 2;
+    const maxLeft = Math.max(0, rail.clientWidth - block.offsetWidth);
+    const left = Math.min(maxLeft, Math.max(0, centerX - halfWidth));
+    block.style.transform = `translateX(${left}px)`;
+
+    return {
+        railWidth: rail.clientWidth,
+        blockLeft: left,
+        blockWidth: block.offsetWidth,
+        blockCenter: left + (block.offsetWidth / 2)
+    };
+}
+
+function setFlowBlockVisualState(state) {
+    const block = document.getElementById('flow-tempo-player-block');
+    if (!block) return;
+    if (flowBlockVisualState === state) return;
+
+    flowBlockVisualState = state;
+    block.classList.remove('state-on', 'state-near', 'state-out');
+    if (state === 'near') {
+        block.classList.add('state-near');
+        return;
+    }
+    if (state === 'out') {
+        block.classList.add('state-out');
+        return;
+    }
+    block.classList.add('state-on');
+}
+
+function updateFlowCoachRealtime(metrics) {
+    if (!metrics) return;
+
+    const targetX = flowWpmToRatio(flowTargetWpm) * metrics.railWidth;
+    const blockLeft = metrics.blockLeft;
+    const blockRight = blockLeft + metrics.blockWidth;
+    const inside = targetX >= blockLeft && targetX <= blockRight;
+
+    if (inside) {
+        const distanceToEdge = Math.min(targetX - blockLeft, blockRight - targetX);
+        const nearEdgeThreshold = metrics.blockWidth * 0.2;
+        if (distanceToEdge <= nearEdgeThreshold) {
+            setFlowBlockVisualState('near');
+        } else {
+            setFlowBlockVisualState('on');
+        }
+
+        if (flowCoachState !== 'maintain') {
+            flowCoachState = 'maintain';
+            updateFlowCoach('maintain', 'maintain that tempo');
+        }
+        return;
+    }
+
+    setFlowBlockVisualState('out');
+    if (metrics.blockCenter < targetX) {
+        if (flowCoachState !== 'slow') {
+            flowCoachState = 'slow';
+            updateFlowCoach('slow', 'speed up typing');
+        }
+        return;
+    }
+
+    if (flowCoachState !== 'fast') {
+        flowCoachState = 'fast';
+        updateFlowCoach('fast', 'slow down typing');
+    }
+}
+
+function stopFlowMeterAnimation() {
+    if (flowMeterRafId) {
+        cancelAnimationFrame(flowMeterRafId);
+        flowMeterRafId = null;
+    }
+}
+
+function clearFlowScoreTimer() {
+    if (flowScoreInterval) {
+        clearInterval(flowScoreInterval);
+        flowScoreInterval = null;
+    }
+}
+
+function stepFlowMeterAnimation() {
+    recomputeFlowCurrentWpm();
+
+    // Smoothly chase real WPM so meter movement feels fluid instead of jumpy.
+    flowDisplayWpm += (flowCurrentWpm - flowDisplayWpm) * 0.11;
+    const meterMetrics = updateFlowMeterPlayerBlock();
+    updateFlowCoachRealtime(meterMetrics);
+    const currentEl = document.getElementById('flow-current-wpm');
+    if (currentEl) currentEl.textContent = String(Math.round(flowCurrentWpm));
+    if (!gameEnded && isFlowMode() && timerInterval) {
+        flowMeterRafId = requestAnimationFrame(stepFlowMeterAnimation);
+    } else {
+        flowMeterRafId = null;
+    }
+}
+
+function startFlowMeterAnimation() {
+    stopFlowMeterAnimation();
+    flowDisplayWpm = flowCurrentWpm;
+    flowCoachState = 'maintain';
+    flowBlockVisualState = 'on';
+    updateFlowMeterTargetLine();
+    const meterMetrics = updateFlowMeterPlayerBlock();
+    updateFlowCoachRealtime(meterMetrics);
+    flowMeterRafId = requestAnimationFrame(stepFlowMeterAnimation);
+}
+
+function extendFlowWords(minAdditionalWords = 24) {
+    const source = [
+        'steady', 'rhythm', 'tempo', 'baseline', 'typing', 'motion',
+        'cadence', 'signal', 'pattern', 'focus', 'breath', 'flow'
+    ];
+
+    for (let i = 0; i < minAdditionalWords; i += 1) {
+        flowMarqueeWords.push(source[Math.floor(Math.random() * source.length)]);
+    }
+}
+
+function renderFlowMarquee(positionInstant = true) {
+    const track = document.getElementById('flow-marquee-track');
+    if (!track) return;
+
+    track.innerHTML = '';
+    flowMarqueeWords.forEach((word, idx) => {
+        const span = document.createElement('span');
+        span.className = 'flow-word-token';
+        span.dataset.flowWordIndex = String(idx);
+        span.textContent = word;
+        track.appendChild(span);
+    });
+
+    updateFlowMarqueeState(positionInstant);
+}
+
+function updateFlowMarqueeState(positionInstant = false) {
+    const track = document.getElementById('flow-marquee-track');
+    if (!track) return;
+
+    const words = track.querySelectorAll('.flow-word-token');
+    words.forEach((token) => {
+        const idx = Number(token.dataset.flowWordIndex || -1);
+        token.classList.toggle('typed', idx >= 0 && idx < flowMarqueeNextIndex);
+        token.classList.toggle('next', idx === flowMarqueeNextIndex);
+    });
+
+    updateFlowMarqueePosition(positionInstant);
+}
+
+function updateFlowMarqueePosition(positionInstant = false) {
+    const wrap = document.querySelector('.flow-marquee-wrap');
+    const track = document.getElementById('flow-marquee-track');
+    if (!wrap || !track) return;
+
+    const nextToken = track.querySelector(`[data-flow-word-index="${flowMarqueeNextIndex}"]`) || track.lastElementChild;
+    if (!nextToken) return;
+
+    const desiredX = wrap.clientWidth * FLOW_MARQUEE_ANCHOR_RATIO;
+    const rawOffset = nextToken.offsetLeft - desiredX;
+    const maxOffset = Math.max(0, track.scrollWidth - wrap.clientWidth);
+    flowMarqueeOffsetX = Math.min(maxOffset, Math.max(0, rawOffset));
+
+    if (positionInstant) {
+        track.style.transition = 'none';
+        track.style.transform = `translateX(${-flowMarqueeOffsetX}px)`;
+        requestAnimationFrame(() => {
+            track.style.transition = 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)';
+        });
+        return;
+    }
+
+    track.style.transform = `translateX(${-flowMarqueeOffsetX}px)`;
+}
+
+function setFlowSubmitFeedback(message, type = 'ok') {
+    const feedback = document.getElementById('flow-submit-feedback');
+    if (!feedback) return;
+
+    feedback.textContent = message;
+    feedback.classList.remove('feedback-ok', 'feedback-wrong');
+    if (type === 'wrong') {
+        feedback.classList.add('feedback-wrong');
+    } else {
+        feedback.classList.add('feedback-ok');
+    }
+}
+
+function updateFlowCoach(state, message) {
+    const coach = document.getElementById('flow-tempo-coach');
+    if (!coach) return;
+
+    coach.textContent = message;
+    coach.classList.remove('tempo-fast', 'tempo-slow', 'tempo-maintain');
+    if (state === 'fast') {
+        coach.classList.add('tempo-fast');
+        return;
+    }
+    if (state === 'slow') {
+        coach.classList.add('tempo-slow');
+        return;
+    }
+    coach.classList.add('tempo-maintain');
+}
+
+function handleFlowSubmit() {
+    if (!isFlowMode() || gameEnded || !timerInterval) return;
+
+    const flowInput = document.getElementById('flow-input');
+    if (!flowInput) return;
+
+    const typedWord = flowInput.value.trim().toLowerCase();
+    const expected = (flowMarqueeWords[flowMarqueeNextIndex] || '').toLowerCase();
+
+    if (!typedWord) {
+        setFlowSubmitFeedback('type the underlined word', 'wrong');
+        flowInput.classList.add('flow-input-error');
+        return;
+    }
+
+    if (typedWord !== expected) {
+        setFlowSubmitFeedback(`wrong word. expected: ${expected}`, 'wrong');
+        flowInput.classList.add('flow-input-error');
+        return;
+    }
+
+    flowInput.classList.remove('flow-input-error');
+    setFlowSubmitFeedback(`accepted: ${expected}`, 'ok');
+
+    recomputeFlowCurrentWpm();
+    const submitDelta = Math.abs(flowCurrentWpm - flowTargetWpm);
+    const wordPoints = submitDelta <= FLOW_SWEET_BAND
+        ? FLOW_WORD_POINTS * 2
+        : FLOW_WORD_POINTS;
+
+    flowScore += wordPoints;
+    flowWordPoints += wordPoints;
+    document.getElementById('score').textContent = String(flowScore);
+
+    flowSubmissionHistory.push({
+        ts: performance.now(),
+        chars: expected.length
+    });
+
+    flowMarqueeNextIndex += 1;
+    if (flowMarqueeWords.length - flowMarqueeNextIndex <= 8) {
+        extendFlowWords(24);
+        renderFlowMarquee(false);
+    } else {
+        updateFlowMarqueeState(false);
+    }
+
+    flowInput.value = '';
+}
+
+function tryAutoSubmitFlowWord() {
+    const flowInput = document.getElementById('flow-input');
+    if (!flowInput || !isFlowMode() || gameEnded || !timerInterval) return;
+
+    const typedWord = flowInput.value.trim().toLowerCase();
+    const expected = (flowMarqueeWords[flowMarqueeNextIndex] || '').toLowerCase();
+    if (!typedWord || !expected) return;
+
+    if (typedWord === expected) {
+        handleFlowSubmit();
+    }
 }
 
 function clampFlowTarget(value) {
-    return Math.min(110, Math.max(20, value));
-}
-
-function shiftFlowTarget() {
-    const magnitude = 5 + Math.floor(Math.random() * 6);
-    const direction = Math.random() < 0.5 ? -1 : 1;
-    flowTargetWpm = clampFlowTarget(flowTargetWpm + (direction * magnitude));
+    return Math.min(FLOW_WPM_MAX, Math.max(FLOW_WPM_MIN, value));
 }
 
 function flowIsCountableKey(e) {
     if (!e || typeof e.key !== 'string') return false;
+    if (e.key === 'Backspace') return true;
     if (e.key === ' ' || e.key === 'Spacebar') return true;
     return e.key.length === 1;
 }
 
-function handleFlowKeydown(e) {
-    if (!isFlowMode() || gameEnded || !timerInterval) return;
+function recordFlowKeypress(ts = performance.now()) {
+    flowKeyTimestamps.push(ts);
+}
 
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        return;
-    }
+function recomputeFlowCurrentWpm(now = performance.now()) {
+    const cutoff = now - FLOW_KEY_WINDOW_MS;
+    flowKeyTimestamps = flowKeyTimestamps.filter((t) => t >= cutoff);
+    const keysInWindow = flowKeyTimestamps.length;
+    flowCurrentWpm = (keysInWindow / 5) * (60000 / FLOW_KEY_WINDOW_MS);
+}
 
-    if (!flowIsCountableKey(e) || e.repeat) return;
-
-    flowKeyTimestamps.push(performance.now());
+function shiftFlowTarget() {
+    // Flow target is intentionally fixed for this mode.
+    flowTargetWpm = FLOW_TARGET_START;
 }
 
 function updateFlowGauges() {
@@ -348,55 +704,39 @@ function updateFlowGauges() {
     const currentEl = document.getElementById('flow-current-wpm');
     if (targetEl) targetEl.textContent = String(flowTargetWpm);
     if (currentEl) currentEl.textContent = String(Math.round(flowCurrentWpm));
+    updateFlowMeterTargetLine();
 }
 
 function updateFlowSecond() {
     flowElapsedSeconds += 1;
 
-    if (flowElapsedSeconds % FLOW_TARGET_SHIFT_SECONDS === 0) {
-        shiftFlowTarget();
-    }
+    updateFlowGauges();
+}
 
-    const now = performance.now();
-    const cutoff = now - 2000;
-    flowKeyTimestamps = flowKeyTimestamps.filter((t) => t >= cutoff);
+function updateFlowScoreTick() {
+    if (!isFlowMode() || gameEnded || !timerInterval) return;
 
-    const charsInWindow = flowKeyTimestamps.length;
-    flowCurrentWpm = (charsInWindow / 5) * (60 / 2);
+    recomputeFlowCurrentWpm();
 
     const delta = Math.abs(flowCurrentWpm - flowTargetWpm);
-    if (delta > FLOW_ALLOWED_BAND) {
-        flowOutOfBandStreak += 1;
-        flowSweetStreak = 0;
-    } else {
-        flowOutOfBandStreak = 0;
-        if (delta <= FLOW_SWEET_BAND) {
-            flowSweetStreak += 1;
-            flowSweetTotalSeconds += 1;
-            flowLastMultiplier = Math.floor(flowSweetStreak / 10) + 1;
-            flowBestMultiplier = Math.max(flowBestMultiplier, flowLastMultiplier);
-            flowScore += 10 * flowLastMultiplier;
-        } else {
-            flowSweetStreak = 0;
-            flowLastMultiplier = 1;
-        }
+    const closeness = Math.max(0, 1 - (delta / (FLOW_ALLOWED_BAND * 3)));
+    flowClosenessAccumulator += (closeness * 0.5);
+
+    if (delta <= FLOW_ALLOWED_BAND) {
+        flowOnTargetSeconds += 0.5;
+        const tickPoints = delta <= FLOW_SWEET_BAND
+            ? FLOW_TEMPO_TICK_POINTS * 2
+            : FLOW_TEMPO_TICK_POINTS;
+        flowScore += tickPoints;
+        flowTempoPoints += tickPoints;
     }
+
+    flowLastAccuracyPct = Math.round(closeness * 100);
+    flowBestAccuracyPct = Math.max(flowBestAccuracyPct, flowLastAccuracyPct);
 
     document.getElementById('score').textContent = String(flowScore);
-    document.getElementById('last-speed').textContent = String(flowLastMultiplier);
+    document.getElementById('last-speed').textContent = String(flowLastAccuracyPct);
     updateFlowGauges();
-
-    if (flowOutOfBandStreak >= 2) {
-        finalizeGame({
-            reason: 'You drifted outside target tempo for 2 consecutive seconds.',
-            score: flowScore,
-            total_attempts: flowSweetTotalSeconds,
-            avg_speed: 0,
-            flow_target_wpm: flowTargetWpm,
-            flow_current_wpm: flowCurrentWpm,
-            flow_best_combo: flowBestMultiplier
-        });
-    }
 }
 
 function clearInterferenceTimeout() {
@@ -406,20 +746,64 @@ function clearInterferenceTimeout() {
     }
 }
 
+function getInterferenceInput() {
+    return document.getElementById('interference-paragraph') || document.getElementById('word-input');
+}
+
+const INTERFERENCE_TAUNTS = [
+    'you call that focus?',
+    'this is the easy part.',
+    'the words are winning.',
+    'maybe try blinking less.',
+    'close me if you can.',
+    'the paragraph is laughing at you.',
+    'almost there, not really.',
+    'you have seen worse popups.'
+];
+
 function getInterferenceAverageReactionTime() {
     if (!interferenceReactionTimes.length) return 0;
     const total = interferenceReactionTimes.reduce((sum, value) => sum + value, 0);
     return total / interferenceReactionTimes.length;
 }
 
-function updateInterferenceScore() {
-    const input = document.getElementById('interference-input');
-    if (!input) return;
+function renderInterferenceTarget() {
+    const target = document.getElementById('interference-paragraph');
+    if (!target) return;
 
-    interferenceTypedLength = input.value.length;
+    const chars = interferenceParagraphText.toLowerCase().split('');
+    target.innerHTML = chars.map((ch, i) => {
+        const safe = ch === ' ' ? '&nbsp;' : ch.replace('<', '&lt;').replace('>', '&gt;');
+        return `<span class="interference-char" data-idx="${i}">${safe}</span>`;
+    }).join('');
+    updateInterferenceCursor();
+}
+
+function updateInterferenceCursor(wrongIndex = -1) {
+    const target = document.getElementById('interference-paragraph');
+    if (!target) return;
+
+    const chars = target.querySelectorAll('.interference-char');
+    chars.forEach((el, i) => {
+        el.classList.remove('correct', 'current', 'wrong', 'shake');
+        if (i < interferenceTypedIndex) el.classList.add('correct');
+        if (i === interferenceTypedIndex) el.classList.add('current');
+        if (i === wrongIndex) {
+            el.classList.add('wrong', 'shake');
+            setTimeout(() => {
+                el.classList.remove('shake', 'wrong');
+                if (i === interferenceTypedIndex) el.classList.add('current');
+            }, 190);
+        }
+    });
+}
+
+function updateInterferenceScore() {
+    interferenceTypedLength = interferenceTypedIndex;
     const elapsedMs = Math.max(1000, performance.now() - interferenceStartedAt);
     const elapsedMinutes = elapsedMs / 60000;
     interferenceCurrentWpm = elapsedMinutes > 0 ? (interferenceTypedLength / 5) / elapsedMinutes : 0;
+    interferenceBestWpm = Math.max(interferenceBestWpm, interferenceCurrentWpm);
     interferenceBaseScore = Math.floor(interferenceCurrentWpm * 100);
 
     const totalScore = interferenceBaseScore + interferenceReactionBonus;
@@ -432,7 +816,89 @@ function updateInterferenceScore() {
 function hideInterferenceModal() {
     const modal = document.getElementById('interference-modal');
     if (modal) modal.setAttribute('hidden', 'hidden');
+    const xPopup = document.getElementById('interference-x-popup');
+    const captchaPopup = document.getElementById('interference-captcha-popup');
+    if (xPopup) xPopup.setAttribute('hidden', 'hidden');
+    if (captchaPopup) captchaPopup.setAttribute('hidden', 'hidden');
     interferenceModalOpen = false;
+}
+
+function randomCaptchaCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 4; i += 1) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+}
+
+function randomizeModalPosition() {
+    const popup = document.getElementById('interference-x-popup');
+    if (!popup) return;
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    const maxOffsetX = Math.min(180, Math.max(32, viewportWidth * 0.14));
+    const maxOffsetY = Math.min(140, Math.max(32, viewportHeight * 0.12));
+    const offsetX = (Math.random() * 2 - 1) * maxOffsetX;
+    const offsetY = (Math.random() * 2 - 1) * maxOffsetY;
+
+    popup.style.setProperty('--popup-offset-x', `${Math.round(offsetX)}px`);
+    popup.style.setProperty('--popup-offset-y', `${Math.round(offsetY)}px`);
+}
+
+function centerModalPosition() {
+    const popup = document.getElementById('interference-captcha-popup');
+    if (!popup) return;
+
+    popup.style.setProperty('--popup-offset-x', '0px');
+    popup.style.setProperty('--popup-offset-y', '0px');
+}
+
+function openInterferenceChallenge() {
+    const captchaCodeEl = document.getElementById('interference-captcha-code');
+    const captchaInput = document.getElementById('interference-captcha-input');
+    const tauntEl = document.getElementById('interference-modal-taunt');
+    const xPopup = document.getElementById('interference-x-popup');
+    const captchaPopup = document.getElementById('interference-captcha-popup');
+
+    if (!xPopup || !captchaPopup) return;
+
+    xPopup.setAttribute('hidden', 'hidden');
+    captchaPopup.setAttribute('hidden', 'hidden');
+
+    interferenceChallengeType = Math.random() < 0.5 ? 'x' : 'captcha';
+
+    if (interferenceChallengeType === 'x') {
+        xPopup.removeAttribute('hidden');
+        if (tauntEl) {
+            const taunt = INTERFERENCE_TAUNTS[Math.floor(Math.random() * INTERFERENCE_TAUNTS.length)];
+            tauntEl.textContent = `> ${taunt}`;
+        }
+        return;
+    }
+
+    interferenceCaptchaCode = randomCaptchaCode();
+    captchaPopup.removeAttribute('hidden');
+    if (tauntEl) tauntEl.textContent = '';
+    if (captchaCodeEl) captchaCodeEl.textContent = interferenceCaptchaCode;
+    if (captchaInput) {
+        captchaInput.value = '';
+        captchaInput.focus();
+    }
+}
+
+function tryCloseInterferenceCaptcha() {
+    const captchaInput = document.getElementById('interference-captcha-input');
+    if (!captchaInput) return;
+    const value = captchaInput.value.trim().toUpperCase();
+    if (value !== interferenceCaptchaCode) {
+        captchaInput.classList.add('shake');
+        setTimeout(() => captchaInput.classList.remove('shake'), 160);
+        return;
+    }
+    closeInterferenceModal();
 }
 
 function scheduleNextInterferenceDistraction() {
@@ -443,11 +909,19 @@ function scheduleNextInterferenceDistraction() {
     interferenceDistractionTimeout = setTimeout(() => {
         if (isInterferenceMode() && !gameEnded && !interferenceModalOpen) {
             const modal = document.getElementById('interference-modal');
-            const input = document.getElementById('interference-input');
+            const input = getInterferenceInput();
             if (!modal || !input) return;
             interferenceModalOpen = true;
             interferenceModalShownAt = Date.now();
             modal.removeAttribute('hidden');
+            openInterferenceChallenge();
+            requestAnimationFrame(() => {
+                if (interferenceChallengeType === 'captcha') {
+                    centerModalPosition();
+                } else {
+                    randomizeModalPosition();
+                }
+            });
             input.blur();
         }
     }, delay);
@@ -465,10 +939,38 @@ function closeInterferenceModal() {
     hideInterferenceModal();
     updateInterferenceScore();
 
-    const input = document.getElementById('interference-input');
+    const input = getInterferenceInput();
     if (input) input.focus();
 
     scheduleNextInterferenceDistraction();
+}
+
+function handleInterferenceTyping(e) {
+    if (!isInterferenceMode() || gameEnded || interferenceModalOpen || !timerInterval) return;
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        return;
+    }
+
+    const expected = interferenceParagraphText.toLowerCase()[interferenceTypedIndex];
+    if (expected === undefined) return;
+
+    let typed = e.key;
+    if (typed === 'Spacebar') typed = ' ';
+
+    if (typed.length !== 1 && typed !== ' ') {
+        return;
+    }
+
+    e.preventDefault();
+    if (typed.toLowerCase() === expected) {
+        interferenceTypedIndex += 1;
+        updateInterferenceCursor();
+        updateInterferenceScore();
+        return;
+    }
+
+    updateInterferenceCursor(interferenceTypedIndex);
 }
 
 function getStoredPlayerName() {
@@ -482,23 +984,72 @@ function getStoredPlayerName() {
 function saveStoredPlayerName(name) {
     try {
         localStorage.setItem(PLAYER_NAME_STORAGE_KEY, name);
-        if (isInterferenceMode()) {
-            const wpm = Number(result.interference_wpm || 0).toFixed(2);
-            const bonus = Number(result.reaction_bonus || 0);
-            const reactions = Number(result.reaction_count || 0);
-
-            stat1Label.textContent = 'paragraph wpm';
-            stat1Value.textContent = String(wpm);
-
-            stat2Label.textContent = 'reaction bonus';
-            stat2Value.textContent = `+${bonus}`;
-
-            stat3Label.textContent = 'distractions closed';
-            stat3Value.textContent = String(reactions);
-            return;
-        }
     } catch (e) {
         // if storage is blocked, gameplay still works for this session
+    }
+}
+
+function resetAllModeState() {
+    overloadKeystrokes = 0;
+    overloadLastCountedKey = '';
+    overloadSameKeyStreak = 0;
+
+    meltdownLives = MELTDOWN_STARTING_LIVES;
+    meltdownScore = 0;
+    meltdownWordsCleared = 0;
+    meltdownSurvivalBonus = 0;
+    meltdownCurrentWord = "";
+    meltdownPenaltyLock = false;
+
+    flowTargetWpm = FLOW_TARGET_START;
+    flowCurrentWpm = 0;
+    flowScore = 0;
+    flowSubmissionHistory = [];
+    flowKeyTimestamps = [];
+    flowMarqueeWords = [];
+    flowMarqueeNextIndex = 0;
+    flowMarqueeOffsetX = 0;
+    flowOnTargetSeconds = 0;
+    flowClosenessAccumulator = 0;
+    flowElapsedSeconds = 0;
+    flowLastAccuracyPct = 0;
+    flowBestAccuracyPct = 0;
+    flowDisplayWpm = FLOW_TARGET_START;
+    stopFlowMeterAnimation();
+    clearFlowScoreTimer();
+    flowTempoPoints = 0;
+    flowWordPoints = 0;
+
+    interferenceParagraphText = INTERFERENCE_PARAGRAPH;
+    interferenceModalOpen = false;
+    interferenceModalShownAt = 0;
+    interferenceDistractionTimeout = null;
+    interferenceReactionBonus = 0;
+    interferenceReactionCount = 0;
+    interferenceReactionTimes = [];
+    interferenceStartedAt = 0;
+    interferenceCurrentWpm = 0;
+    interferenceBaseScore = 0;
+    interferenceTypedLength = 0;
+    interferenceTypedIndex = 0;
+    interferenceChallengeType = 'x';
+    interferenceCaptchaCode = '';
+    interferenceBestWpm = 0;
+}
+
+function configureModeInputs() {
+    const wordInput = document.getElementById('word-input');
+    const flowInput = document.getElementById('flow-input');
+    const interferenceInput = getInterferenceInput();
+
+    if (wordInput) {
+        wordInput.disabled = isFlowMode() || isInterferenceMode();
+    }
+    if (flowInput) {
+        flowInput.disabled = !isFlowMode();
+    }
+    if (interferenceInput) {
+        interferenceInput.disabled = !isInterferenceMode();
     }
 }
 
@@ -559,12 +1110,15 @@ function transitionStep(fromId, toId, afterInCallback) {
 
 document.addEventListener('DOMContentLoaded', function() {
     const searchParams = new URLSearchParams(window.location.search);
-    currentMode = resolveMode(searchParams.get('mode'));
+    const gameBox = document.getElementById('game-box');
+    const templateMode = gameBox?.dataset?.gameMode || '';
+    currentMode = resolveMode(templateMode || searchParams.get('mode'));
     currentModeLabel = modeLabel(currentMode);
 
     const modeLabelEl = document.getElementById('current-mode-label');
     if (modeLabelEl) modeLabelEl.textContent = currentModeLabel.toLowerCase();
     setupModeHud();
+    configureModeInputs();
 
     // this is for the name step
     document.getElementById('name-next-btn').onclick = function() {
@@ -600,74 +1154,122 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    document.getElementById('word-input').addEventListener('keydown', function(e) {
-        if (isMeltdownMode()) {
-            if (e.key !== 'Enter') return;
+    const wordInput = document.getElementById('word-input');
+    if (wordInput && (isMeltdownMode() || isOverloadMode() || currentMode === 'classic')) {
+        wordInput.addEventListener('keydown', function(e) {
+            if (isMeltdownMode()) {
+                if (e.key !== 'Enter') return;
 
-            const input = this.value.trim();
-            if (!input) {
-                handleMeltdownPenalty('typo');
+                const input = this.value.trim();
+                if (!input) {
+                    handleMeltdownPenalty('typo');
+                    this.value = '';
+                    return;
+                }
+
+                if (input === meltdownCurrentWord) {
+                    handleMeltdownSuccess();
+                } else {
+                    handleMeltdownPenalty('typo');
+                }
                 this.value = '';
                 return;
             }
 
-            if (input === meltdownCurrentWord) {
-                handleMeltdownSuccess();
-            } else {
-                handleMeltdownPenalty('typo');
+            if (isOverloadMode()) {
+                handleOverloadKeydown(e);
+                return;
             }
-            this.value = '';
-            return;
-        }
 
-        if (isOverloadMode()) {
-            handleOverloadKeydown(e);
-            return;
-        }
-
-        // classic mode: submit on enter
-        if (e.key === 'Enter') {
-            const input = this.value.trim();
-            if (input && sessionId) {
-                if (lastWordStart) {
-                    const speed = Date.now() - lastWordStart;
-                    document.getElementById('last-speed').textContent = speed;
+            if (e.key === 'Enter') {
+                const input = this.value.trim();
+                if (input && sessionId) {
+                    if (lastWordStart) {
+                        const speed = Date.now() - lastWordStart;
+                        document.getElementById('last-speed').textContent = speed;
+                    }
+                    submitWord(input);
                 }
-                submitWord(input);
+                this.value = '';
             }
-            this.value = '';
-        }
-    });
-
-    const flowInput = document.getElementById('flow-input');
-    if (flowInput) {
-        flowInput.addEventListener('keydown', handleFlowKeydown);
-        flowInput.addEventListener('input', function () {
-            // Keep this field clear; only rhythm and keystrokes matter.
-            this.value = '';
         });
     }
 
-    const interferenceInput = document.getElementById('interference-input');
-    if (interferenceInput) {
-        interferenceInput.addEventListener('input', function () {
-            if (!isInterferenceMode()) return;
-            updateInterferenceScore();
+    const interferenceSurface = document.getElementById('interference-paragraph');
+    if (interferenceSurface && isInterferenceMode()) {
+        interferenceSurface.addEventListener('keydown', handleInterferenceTyping);
+        interferenceSurface.addEventListener('mousedown', function () {
+            this.focus();
         });
-        interferenceInput.addEventListener('keydown', function (e) {
-            if (!isInterferenceMode()) return;
+        interferenceSurface.addEventListener('paste', function (e) {
+            e.preventDefault();
+        });
+    }
+
+    const flowInput = document.getElementById('flow-input');
+    if (flowInput && isFlowMode()) {
+        flowInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                return;
+            }
+
             if (e.key === 'Enter') {
                 e.preventDefault();
+                return;
             }
+
+            if (flowIsCountableKey(e) && !e.repeat) {
+                recordFlowKeypress();
+            }
+        });
+
+        flowInput.addEventListener('input', function () {
+            this.classList.remove('flow-input-error');
+            const feedback = document.getElementById('flow-submit-feedback');
+            if (feedback) {
+                feedback.classList.remove('feedback-wrong');
+            }
+            tryAutoSubmitFlowWord();
         });
     }
 
     const interferenceClose = document.getElementById('interference-modal-close');
-    if (interferenceClose) {
+    if (interferenceClose && isInterferenceMode()) {
         interferenceClose.addEventListener('click', function () {
-            if (isInterferenceMode()) closeInterferenceModal();
+            closeInterferenceModal();
         });
     }
+
+    const interferenceCaptchaInput = document.getElementById('interference-captcha-input');
+    const interferenceCaptchaSubmit = document.getElementById('interference-captcha-submit');
+    if (interferenceCaptchaInput && isInterferenceMode()) {
+        interferenceCaptchaInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                tryCloseInterferenceCaptcha();
+            }
+        });
+    }
+    if (interferenceCaptchaSubmit && isInterferenceMode()) {
+        interferenceCaptchaSubmit.addEventListener('click', tryCloseInterferenceCaptcha);
+    }
+
+    window.addEventListener('resize', function () {
+        if (isFlowMode()) {
+            updateFlowMeterTargetLine();
+            updateFlowMeterPlayerBlock();
+            updateFlowMarqueePosition(true);
+        }
+
+        if (isInterferenceMode() && interferenceModalOpen) {
+            if (interferenceChallengeType === 'captcha') {
+                centerModalPosition();
+            } else {
+                randomizeModalPosition();
+            }
+        }
+    });
 
     // this stops people from copying the word
     document.getElementById('game-box').addEventListener('mousedown', function(e) {
@@ -742,6 +1344,10 @@ function setOverloadProgress() {
     const scoreElement = document.getElementById('score');
     const wordDisplay = document.getElementById('current-word');
     const speedElement = document.getElementById('last-speed');
+    const overloadFill = document.getElementById('overload-meter-fill');
+    const overloadPercent = document.getElementById('overload-percent');
+    const overloadStatus = document.getElementById('overload-status');
+    const overloadMeter = document.querySelector('.overload-meter');
 
     if (!scoreElement || !wordDisplay || !speedElement) return;
 
@@ -751,20 +1357,42 @@ function setOverloadProgress() {
     scoreElement.textContent = overloadKeystrokes;
     speedElement.textContent = overloadKeystrokes;
 
-    const blocks = 20;
-    const filled = Math.min(blocks, Math.floor((pct / 100) * blocks));
-    const bar = "#".repeat(filled) + "-".repeat(blocks - filled);
-
     wordDisplay.textContent = bonusReady
-        ? `overload complete [${bar}] ${pct}%`
-        : `mash keys [${bar}] ${pct}%`;
+        ? 'overload complete'
+        : 'mash keys';
     wordDisplay.style.fontSize = window.innerWidth <= 600 ? '18px' : '24px';
+
+    if (overloadFill) {
+        overloadFill.style.width = `${pct}%`;
+        overloadFill.classList.remove('state-low', 'state-mid', 'state-high', 'state-full');
+        if (pct >= 100) overloadFill.classList.add('state-full');
+        else if (pct >= 67) overloadFill.classList.add('state-high');
+        else if (pct >= 34) overloadFill.classList.add('state-mid');
+        else overloadFill.classList.add('state-low');
+    }
+
+    if (overloadPercent) overloadPercent.textContent = `${pct}%`;
+    if (overloadStatus) {
+        overloadStatus.textContent = bonusReady ? 'overcharge ready' : 'powering up...';
+    }
+    if (overloadMeter) overloadMeter.setAttribute('aria-valuenow', String(pct));
 }
 
 function handleOverloadKeydown(e) {
     if (gameEnded) return;
     if (!timerInterval) return;
     if (e.repeat) return;
+
+    const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
+    if (key && key === overloadLastCountedKey) {
+        overloadSameKeyStreak += 1;
+        if (overloadSameKeyStreak > 3) {
+            return;
+        }
+    } else {
+        overloadLastCountedKey = key;
+        overloadSameKeyStreak = 1;
+    }
 
     // Overload counts key hits only; typed content is intentionally ignored.
     e.preventDefault();
@@ -779,14 +1407,19 @@ function handleOverloadKeydown(e) {
 function renderFinalStats(result) {
     const stat1Label = document.getElementById('final-stat-1-label');
     const stat1Value = document.getElementById('final-stat-1-value');
+    const stat2Row = document.getElementById('final-stat-2-row');
     const stat2Label = document.getElementById('final-stat-2-label');
     const stat2Value = document.getElementById('final-stat-2-value');
+    const stat3Row = document.getElementById('final-stat-3-row');
     const stat3Label = document.getElementById('final-stat-3-label');
     const stat3Value = document.getElementById('final-stat-3-value');
 
-    if (!stat1Label || !stat1Value || !stat2Label || !stat2Value || !stat3Label || !stat3Value) {
+    if (!stat1Label || !stat1Value || !stat2Row || !stat2Label || !stat2Value || !stat3Label || !stat3Value || !stat3Row) {
         return;
     }
+
+    stat2Row.removeAttribute('hidden');
+    stat3Row.removeAttribute('hidden');
 
     if (isOverloadMode()) {
         const keystrokes = Number(result.keystrokes || result.total_attempts || 0);
@@ -805,33 +1438,43 @@ function renderFinalStats(result) {
     }
 
     if (isMeltdownMode()) {
-        const livesLeft = Number(result.lives_left || 0);
-        const survivalBonus = Number(result.survival_bonus || 0);
-
         stat1Label.textContent = 'words cleared';
         stat1Value.textContent = String(result.total_attempts || 0);
 
-        stat2Label.textContent = 'lives remaining';
-        stat2Value.textContent = String(livesLeft);
-
-        stat3Label.textContent = 'survival bonus';
-        stat3Value.textContent = survivalBonus > 0 ? `+${survivalBonus}` : 'none';
+        stat2Row.setAttribute('hidden', 'hidden');
+        stat3Row.setAttribute('hidden', 'hidden');
         return;
     }
 
     if (isFlowMode()) {
-        const target = Math.round(Number(result.flow_target_wpm || 0));
-        const current = Math.round(Number(result.flow_current_wpm || 0));
-        const bestCombo = Number(result.flow_best_combo || 1);
+        const tempoPoints = Number(result.flow_tempo_points || 0);
+        const wordPoints = Number(result.flow_word_points || 0);
+        const onTargetSeconds = Number(result.flow_on_target_seconds || 0);
+        const avgClosenessPct = Number(result.flow_avg_closeness_pct || 0).toFixed(1);
 
-        stat1Label.textContent = 'target / current wpm';
-        stat1Value.textContent = `${target} / ${current}`;
+        stat1Label.textContent = 'tempo points';
+        stat1Value.textContent = String(tempoPoints);
 
-        stat2Label.textContent = 'sweet spot seconds';
-        stat2Value.textContent = String(result.total_attempts || 0);
+        stat2Label.textContent = 'word points';
+        stat2Value.textContent = String(wordPoints);
 
-        stat3Label.textContent = 'best combo multiplier';
-        stat3Value.textContent = `x${bestCombo}`;
+        stat3Label.textContent = 'on-target seconds';
+        stat3Value.textContent = `${onTargetSeconds.toFixed(1)}s (${avgClosenessPct}% avg)`;
+        return;
+    }
+
+    if (isInterferenceMode()) {
+        const wpm = Number(result.interference_wpm || 0).toFixed(2);
+        const avgReaction = Number(result.avg_reaction_time || 0).toFixed(0);
+
+        stat1Label.textContent = 'paragraph wpm';
+        stat1Value.textContent = String(wpm);
+
+        stat2Label.textContent = 'reaction bonus';
+        stat2Value.textContent = `+${Number(result.reaction_bonus || 0)}`;
+
+        stat3Label.textContent = 'avg reaction (ms)';
+        stat3Value.textContent = String(avgReaction);
         return;
     }
 
@@ -841,8 +1484,9 @@ function renderFinalStats(result) {
     stat2Label.textContent = 'average speed';
     stat2Value.textContent = `${Number(result.avg_speed || 0).toFixed(2)} ms`;
 
-    stat3Label.textContent = 'mistake policy';
-    stat3Value.textContent = 'single typo ends run';
+    stat3Label.textContent = '';
+    stat3Value.textContent = '';
+    stat3Row.setAttribute('hidden', 'hidden');
 }
 
 async function finalizeGame(result) {
@@ -856,7 +1500,10 @@ async function finalizeGame(result) {
 
     clearMeltdownRoundTimer();
     clearInterferenceTimeout();
+    stopFlowMeterAnimation();
+    clearFlowScoreTimer();
     hideInterferenceModal();
+    document.body.classList.remove('meltdown-danger', 'meltdown-flash');
 
     const wordInput = document.getElementById('word-input');
     if (wordInput) wordInput.disabled = true;
@@ -883,13 +1530,7 @@ async function finalizeGame(result) {
 
 function startGame() {
     gameEnded = false;
-    overloadKeystrokes = 0;
-    meltdownLives = MELTDOWN_STARTING_LIVES;
-    meltdownScore = 0;
-    meltdownWordsCleared = 0;
-    meltdownSurvivalBonus = 0;
-    meltdownCurrentWord = "";
-    meltdownPenaltyLock = false;
+    resetAllModeState();
 
     if (typeof window.TelemetryEngine?.resetTelemetry === 'function') {
         window.TelemetryEngine.resetTelemetry();
@@ -900,20 +1541,23 @@ function startGame() {
     wordInput.value = '';
     wordInput.focus();
     document.getElementById('last-speed').textContent = '-';
+    configureModeInputs();
 
     if (timerInterval) clearInterval(timerInterval);
     clearMeltdownRoundTimer();
+    clearInterferenceTimeout();
+    hideInterferenceModal();
 
     if (isMeltdownMode()) {
         sessionId = null;
-        timeLeft = MELTDOWN_GLOBAL_SECONDS;
+        timeLeft = 0;
         document.getElementById('score').textContent = '0';
-        document.getElementById('time-left').textContent = String(MELTDOWN_GLOBAL_SECONDS);
+        document.getElementById('time-left').textContent = 'inf';
         document.getElementById('last-speed').textContent = '0';
-        wordInput.placeholder = 'type fast, submit before 3.00s';
+        wordInput.placeholder = 'type fast, submit before 10.00s';
         updateMeltdownHud();
         startMeltdownRound();
-        timerInterval = setInterval(updateTimer, 1000);
+        timerInterval = null;
         return;
     }
 
@@ -935,31 +1579,39 @@ function startGame() {
         flowTargetWpm = FLOW_TARGET_START;
         flowCurrentWpm = 0;
         flowScore = 0;
+        flowSubmissionHistory = [];
         flowKeyTimestamps = [];
-        flowOutOfBandStreak = 0;
-        flowSweetStreak = 0;
-        flowSweetTotalSeconds = 0;
+        flowMarqueeWords = [];
+        flowMarqueeNextIndex = 0;
+        flowMarqueeOffsetX = 0;
+        flowOnTargetSeconds = 0;
+        flowClosenessAccumulator = 0;
         flowElapsedSeconds = 0;
-        flowLastMultiplier = 1;
-        flowBestMultiplier = 1;
+        flowLastAccuracyPct = 0;
+        flowBestAccuracyPct = 0;
+        flowDisplayWpm = FLOW_TARGET_START;
 
         document.getElementById('score').textContent = '0';
         document.getElementById('time-left').textContent = String(FLOW_GLOBAL_SECONDS);
-        document.getElementById('last-speed').textContent = '1';
+        document.getElementById('last-speed').textContent = '0';
         initFlowMarquee();
         updateFlowGauges();
+        startFlowMeterAnimation();
 
         if (flowInput) {
             flowInput.value = '';
+            flowInput.classList.remove('flow-input-error');
             flowInput.focus();
         }
 
+        clearFlowScoreTimer();
+        flowScoreInterval = setInterval(updateFlowScoreTick, 500);
         timerInterval = setInterval(updateTimer, 1000);
         return;
     }
 
     if (isInterferenceMode()) {
-        const interferenceInput = document.getElementById('interference-input');
+        const interferenceInput = getInterferenceInput();
         const interferenceParagraph = document.getElementById('interference-paragraph');
         const modal = document.getElementById('interference-modal');
 
@@ -975,10 +1627,10 @@ function startGame() {
             interferenceParagraph.textContent = INTERFERENCE_PARAGRAPH;
         }
 
-        if (interferenceInput) {
-            interferenceInput.value = '';
-            interferenceInput.focus();
-        }
+        interferenceTypedIndex = 0;
+        renderInterferenceTarget();
+
+        if (interferenceInput) interferenceInput.focus();
 
         if (modal) {
             modal.setAttribute('hidden', 'hidden');
@@ -1066,14 +1718,20 @@ function updateTimer() {
 
         if (t <= 0 && !gameEnded) {
             clearInterval(timerInterval);
+            const avgClosenessPct = flowElapsedSeconds > 0
+                ? (flowClosenessAccumulator / flowElapsedSeconds) * 100
+                : 0;
             finalizeGame({
                 reason: 'Flow session completed.',
                 score: flowScore,
-                total_attempts: flowSweetTotalSeconds,
+                total_attempts: flowOnTargetSeconds,
                 avg_speed: 0,
                 flow_target_wpm: flowTargetWpm,
                 flow_current_wpm: flowCurrentWpm,
-                flow_best_combo: flowBestMultiplier
+                flow_on_target_seconds: flowOnTargetSeconds,
+                flow_avg_closeness_pct: avgClosenessPct,
+                flow_tempo_points: flowTempoPoints,
+                flow_word_points: flowWordPoints
             });
         }
         return;
@@ -1082,7 +1740,7 @@ function updateTimer() {
     if (isInterferenceMode() && timerInterval) {
         updateInterferenceScore();
         if (!interferenceModalOpen) {
-            const interferenceInput = document.getElementById('interference-input');
+            const interferenceInput = getInterferenceInput();
             if (interferenceInput) interferenceInput.focus();
         }
 
@@ -1104,20 +1762,6 @@ function updateTimer() {
 
     if (t <= 0 && timerInterval) {
         clearInterval(timerInterval);
-
-        if (isMeltdownMode()) {
-            meltdownSurvivalBonus = MELTDOWN_SURVIVAL_BONUS;
-            meltdownScore += MELTDOWN_SURVIVAL_BONUS;
-            finalizeGame({
-                reason: 'You survived the full 120s under pressure.',
-                score: meltdownScore,
-                total_attempts: meltdownWordsCleared,
-                avg_speed: 0,
-                lives_left: meltdownLives,
-                survival_bonus: meltdownSurvivalBonus
-            });
-            return;
-        }
 
         if (isOverloadMode()) {
             const bonusMultiplier = overloadKeystrokes >= OVERLOAD_TARGET ? 2 : 1;

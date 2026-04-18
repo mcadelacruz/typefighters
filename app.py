@@ -7,13 +7,32 @@ import csv
 import io
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session as flask_session, Response, stream_with_context
+from sqlalchemy import text, inspect
 from config import Config
 
 from models import db, HighScore, TelemetryData  # this imports the database and models
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    instance_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
+)
 app.config.from_object(Config)
 db.init_app(app)  # this connects the database to the app
+
+
+def ensure_schema():
+    with app.app_context():
+        db.create_all()
+
+        inspector = inspect(db.engine)
+        if 'high_score' in inspector.get_table_names():
+            columns = {column['name'] for column in inspector.get_columns('high_score')}
+            if 'game_mode' not in columns:
+                db.session.execute(text("ALTER TABLE high_score ADD COLUMN game_mode VARCHAR(20) NOT NULL DEFAULT 'Classic'"))
+                db.session.commit()
+
+
+ensure_schema()
 
 # this is the list of words for the typing game
 WORD_LIST = [
@@ -126,8 +145,37 @@ def about():
 @app.route('/highscores')
 def highscores():
     # this shows the high scores page
-    scores = HighScore.query.order_by(HighScore.score.desc(), HighScore.created_at.desc()).limit(10).all()
-    return render_template('highscores.html', scores=scores)
+    mode_tabs = [
+        ('all', 'All'),
+        ('classic', 'Classic'),
+        ('meltdown', 'Meltdown'),
+        ('flow-state', 'Flow State'),
+        ('interference', 'Interference'),
+        ('overload', 'Overload')
+    ]
+    mode_label_map = {
+        'classic': 'Classic',
+        'meltdown': 'Meltdown',
+        'flow-state': 'Flow State',
+        'interference': 'Interference',
+        'overload': 'Overload'
+    }
+
+    selected_mode = (request.args.get('mode') or 'all').strip().lower()
+    if selected_mode not in {slug for slug, _ in mode_tabs}:
+        selected_mode = 'all'
+
+    query = HighScore.query
+    if selected_mode != 'all':
+        query = query.filter(HighScore.game_mode == mode_label_map[selected_mode])
+
+    scores = query.order_by(HighScore.score.desc(), HighScore.created_at.desc()).limit(10).all()
+    return render_template(
+        'highscores.html',
+        scores=scores,
+        selected_mode=selected_mode,
+        mode_tabs=mode_tabs
+    )
 
 @app.route('/api/start_game', methods=['POST'])
 def api_start_game():
