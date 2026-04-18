@@ -17,11 +17,11 @@
     'overload': 'overload'
 } %}
 {% set mode_instruction_map = {
-    'classic': 'type each word and press enter. faster words score higher.',
-    'meltdown': 'type the shown long word and press enter before the timer hits zero. mistakes or timeouts cost lives.',
-    'flow-state': 'type the underlined moving word to auto-submit. stay near target wpm to keep scoring.',
-    'interference': 'retype the full paragraph exactly while random popups interrupt you. clear popups fast and continue typing.',
-    'overload': 'mash varied keys fast for 30s; repeated same-key spam is throttled. fill the meter for overcharge bonus.'
+    'classic': 'type each word and press enter. typing faster and making fewer mistakes gives more points.',
+    'meltdown': 'type the long word and press enter before time runs out. correct fast entries add score; mistakes or timeout remove lives.',
+    'flow-state': 'type the underlined word. stay close to the target wpm to score better; going too fast or too slow gives fewer points.',
+    'interference': 'retype the paragraph exactly while popups appear. good accuracy and steady speed score best; close distractions quickly and keep typing.',
+    'overload': 'for 30 seconds, press different keys quickly to fill the meter. fast varied input scores more and raises overcharge; repeating the same character gives little score.'
 } %}
 {% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
 {% set mode_instruction = mode_instruction_map.get(selected_mode, mode_instruction_map['classic']) %}
