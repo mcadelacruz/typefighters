@@ -1565,6 +1565,55 @@ function renderFinalStats(result) {
     stat3Row.setAttribute('hidden', 'hidden');
 }
 
+function renderFinalLeaderboard(result) {
+    const panel = document.getElementById('final-leaderboard-panel');
+    const rankEl = document.getElementById('final-leaderboard-rank');
+    const windowEl = document.getElementById('final-leaderboard-window');
+    const body = document.getElementById('final-leaderboard-body');
+
+    if (!panel || !rankEl || !windowEl || !body) {
+        return;
+    }
+
+    const rank = Number(result.leaderboard_rank || 0);
+    const total = Number(result.leaderboard_total || 0);
+    const windowStart = Number(result.leaderboard_window_start || 0);
+    const windowEnd = Number(result.leaderboard_window_end || 0);
+    const rows = Array.isArray(result.leaderboard_rows) ? result.leaderboard_rows : [];
+
+    if (!rank || !rows.length) {
+        panel.hidden = true;
+        body.replaceChildren();
+        return;
+    }
+
+    panel.hidden = false;
+    rankEl.textContent = `your rank: #${rank}${total > 0 ? ` of ${total}` : ''}`;
+    windowEl.textContent = rows.length === 1
+        ? 'showing only your score'
+        : `showing ranks ${windowStart} to ${windowEnd}`;
+
+    body.replaceChildren();
+    rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        if (row.is_current_player) {
+            tr.classList.add('final-leaderboard-row-current');
+        }
+
+        const rankCell = document.createElement('td');
+        rankCell.textContent = String(row.rank || '');
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = String(row.name || '');
+
+        const scoreCell = document.createElement('td');
+        scoreCell.textContent = String(row.score || 0);
+
+        tr.append(rankCell, nameCell, scoreCell);
+        body.appendChild(tr);
+    });
+}
+
 async function finalizeGame(result) {
     if (gameEnded) return;
     gameEnded = true;
@@ -1596,10 +1645,24 @@ async function finalizeGame(result) {
         document.getElementById('game-over-reason').textContent = result.reason;
         document.getElementById('final-score').textContent = result.score;
         renderFinalStats(result);
+        renderFinalLeaderboard(result);
 
         const finalModeEl = document.getElementById('final-mode');
         if (finalModeEl) {
             finalModeEl.textContent = currentModeLabel.toLowerCase();
+        }
+
+        const finalHighscoresButton = document.getElementById('final-highscores-button');
+        if (finalHighscoresButton) {
+            const baseHref = finalHighscoresButton.dataset.baseHref;
+            const leaderboardPage = Number(result.leaderboard_page || 0);
+            if (baseHref && leaderboardPage > 0) {
+                finalHighscoresButton.onclick = function () {
+                    const url = new URL(baseHref, window.location.origin);
+                    url.searchParams.set('page', String(leaderboardPage));
+                    window.location.href = url.toString();
+                };
+            }
         }
     });
 }

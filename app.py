@@ -8,7 +8,7 @@ import io
 import math
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session as flask_session, Response, stream_with_context
-from sqlalchemy import text, inspect
+from sqlalchemy import text, inspect, and_, or_
 from config import Config
 
 from models import db, HighScore, TelemetryData  # this imports the database and models
@@ -521,7 +521,8 @@ def api_submit_word():
             'total_attempts': session['total_attempts'],
             'avg_speed': avg_speed
         }
-        save_high_score(session)
+        saved_high_score = save_high_score(session)
+        result.update(build_leaderboard_snapshot(saved_high_score))
         active_sessions.pop(session_id, None)
         return jsonify(result)
 
@@ -549,7 +550,8 @@ def api_submit_word():
         'total_attempts': session['total_attempts'],
         'avg_speed': avg_speed
     }
-    save_high_score(session)
+    saved_high_score = save_high_score(session)
+    result.update(build_leaderboard_snapshot(saved_high_score))
     active_sessions.pop(session_id, None)
     return jsonify(result)
 
@@ -814,7 +816,7 @@ def calculate_greedy_score(word, time_taken):
 def save_high_score(session):
     # this saves the player's score to the database
     if session['total_attempts'] == 0:
-        return
+        return None
         
     avg_speed = session['total_speed'] / session['total_attempts']
     final_stats = build_final_stats(session.get('game_mode', 'Classic'), {
@@ -831,6 +833,48 @@ def save_high_score(session):
     )
     db.session.add(high_score)
     db.session.commit()
+    return high_score
+
+
+def build_leaderboard_snapshot(high_score, window_size=5):
+    if high_score is None:
+        return {}
+
+    mode = high_score.game_mode
+    query = HighScore.query.filter(HighScore.game_mode == mode)
+    better_score_count = query.filter(
+        or_(
+            HighScore.score > high_score.score,
+            and_(HighScore.score == high_score.score, HighScore.created_at > high_score.created_at)
+        )
+    ).count()
+
+    rank = better_score_count + 1
+    total_scores = query.count()
+
+    half_window = window_size // 2
+    window_start = max(1, rank - half_window)
+    window_end = min(total_scores, window_start + window_size - 1)
+    window_start = max(1, window_end - window_size + 1)
+
+    rows = query.order_by(HighScore.score.desc(), HighScore.created_at.desc()).offset(window_start - 1).limit(window_end - window_start + 1).all()
+    leaderboard_rows = []
+    for index, row in enumerate(rows, start=window_start):
+        leaderboard_rows.append({
+            'rank': index,
+            'name': row.name,
+            'score': row.score,
+            'is_current_player': row.id == high_score.id
+        })
+
+    return {
+        'leaderboard_rank': rank,
+        'leaderboard_total': total_scores,
+        'leaderboard_window_start': window_start,
+        'leaderboard_window_end': window_end,
+        'leaderboard_page': max(1, math.ceil(rank / 10)),
+        'leaderboard_rows': leaderboard_rows
+    }
 
 if __name__ == '__main__':
     # this makes sure the database is created before running the app

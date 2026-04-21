@@ -121,8 +121,27 @@
             <div id="final-stat-2-row"><span id="final-stat-2-label">average speed</span>: <span id="final-stat-2-value"></span></div>
             <div id="final-stat-3-row"><span id="final-stat-3-label">result</span>: <span id="final-stat-3-value"></span></div>
         </div>
+        <div id="final-leaderboard-panel" class="final-leaderboard" hidden>
+            <div class="final-leaderboard-title">leaderboard placement</div>
+            <div class="final-leaderboard-meta">
+                <span id="final-leaderboard-rank"></span>
+                <span id="final-leaderboard-window"></span>
+            </div>
+            <div class="responsive-table final-leaderboard-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>rank</th>
+                            <th>name</th>
+                            <th>score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="final-leaderboard-body"></tbody>
+                </table>
+            </div>
+        </div>
         <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}?mode={{ selected_mode }}'">play again</button>
-        <button class="menu-link" onclick="window.location.href='{{ url_for('highscores', mode=selected_mode) }}'">high scores</button>
+        <button id="final-highscores-button" class="menu-link" data-base-href="{{ url_for('highscores', mode=selected_mode) }}" onclick="window.location.href='{{ url_for('highscores', mode=selected_mode) }}'">high scores</button>
         <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">menu</button>
     </div>
 </div>

@@ -1236,6 +1236,37 @@ body.meltdown-active.meltdown-danger .meltdown-screen-vignette {
     text-transform: lowercase;
 }
 
+.final-leaderboard {
+    width: 100%;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.final-leaderboard-title {
+    font-size: 1.02rem;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.35rem;
+}
+
+.final-leaderboard-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    margin-bottom: 0.75rem;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.92rem;
+}
+
+.final-leaderboard-table-wrap table {
+    min-width: 320px;
+}
+
+.final-leaderboard-row-current td {
+    color: #97f5df;
+}
+
 a, .link-btn {
     color: #fff;
     text-decoration: none;
@@ -1394,6 +1425,10 @@ input:focus, .form-control:focus {
         padding: 0.75rem 0.4rem;
         margin-left: 0;
         margin-right: 0;
+    }
+
+    .final-leaderboard {
+        padding: 0.8rem 0.6rem;
     }
 
     input, .form-control {
