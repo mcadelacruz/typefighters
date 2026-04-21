@@ -1112,10 +1112,15 @@ body.home-page.home-loader-ready #page-root {
 }
 
 #game-box.game-mode-interference .word-display,
-#game-box.game-mode-interference #word-input,
 #game-box.game-mode-interference .flow-panel,
 #game-box.game-mode-interference .meltdown-hud {
     display: none !important;
+}
+
+#game-box.game-mode-interference #word-input {
+    display: block;
+    width: 100%;
+    margin-top: 0.5rem;
 }
 
 #game-box.game-mode-interference .interference-panel:not([hidden]) {

@@ -805,7 +805,7 @@ function clearInterferenceTimeout() {
 }
 
 function getInterferenceInput() {
-    return document.getElementById('interference-paragraph') || document.getElementById('word-input');
+    return document.getElementById('word-input') || document.getElementById('interference-paragraph');
 }
 
 const INTERFERENCE_TAUNTS = [
@@ -1003,29 +1003,17 @@ function closeInterferenceModal() {
     scheduleNextInterferenceDistraction();
 }
 
-function handleInterferenceTyping(e) {
+function processInterferenceCharacter(typed) {
     if (!isInterferenceMode() || gameEnded || interferenceModalOpen || !timerInterval) return;
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        return;
-    }
 
     const expected = interferenceParagraphText.toLowerCase()[interferenceTypedIndex];
     if (expected === undefined) return;
 
-    let typed = e.key;
-    if (typed === 'Spacebar') typed = ' ';
-
-    if (typed.length !== 1 && typed !== ' ') {
-        return;
-    }
-
-    e.preventDefault();
     if (typed.toLowerCase() === expected) {
         interferenceTypedIndex += 1;
         updateInterferenceCursor();
         updateInterferenceScore();
-        
+
         // End game when entire paragraph is typed
         if (interferenceTypedIndex === interferenceParagraphText.length && !gameEnded) {
             clearInterval(timerInterval);
@@ -1044,6 +1032,40 @@ function handleInterferenceTyping(e) {
     }
 
     updateInterferenceCursor(interferenceTypedIndex);
+}
+
+function handleInterferenceTyping(e) {
+    if (!isInterferenceMode() || gameEnded || interferenceModalOpen || !timerInterval) return;
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        return;
+    }
+
+    let typed = e.key;
+    if (typed === 'Spacebar') typed = ' ';
+
+    if (typed.length !== 1 && typed !== ' ') {
+        return;
+    }
+
+    e.preventDefault();
+    processInterferenceCharacter(typed);
+}
+
+function handleInterferenceInputEvent(e) {
+    if (!isInterferenceMode() || gameEnded || interferenceModalOpen || !timerInterval) return;
+
+    const inputEl = e.target;
+    if (!inputEl || typeof inputEl.value !== 'string') return;
+
+    const value = inputEl.value;
+    if (!value) return;
+
+    const typed = value[value.length - 1];
+    inputEl.value = '';
+
+    if (typed.length !== 1) return;
+    processInterferenceCharacter(typed === '\u00a0' ? ' ' : typed);
 }
 
 function getStoredPlayerName() {
@@ -1113,16 +1135,12 @@ function resetAllModeState() {
 function configureModeInputs() {
     const wordInput = document.getElementById('word-input');
     const flowInput = document.getElementById('flow-input');
-    const interferenceInput = getInterferenceInput();
 
     if (wordInput) {
-        wordInput.disabled = isFlowMode() || isInterferenceMode();
+        wordInput.disabled = isFlowMode();
     }
     if (flowInput) {
         flowInput.disabled = !isFlowMode();
-    }
-    if (interferenceInput) {
-        interferenceInput.disabled = !isInterferenceMode();
     }
 }
 
@@ -1271,11 +1289,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const interferenceSurface = document.getElementById('interference-paragraph');
-    if (interferenceSurface && isInterferenceMode()) {
-        interferenceSurface.addEventListener('keydown', handleInterferenceTyping);
-        interferenceSurface.addEventListener('mousedown', function () {
-            this.focus();
-        });
+    const interferenceInput = getInterferenceInput();
+    if (interferenceSurface && interferenceInput && isInterferenceMode()) {
+        interferenceInput.addEventListener('keydown', handleInterferenceTyping);
+        interferenceInput.addEventListener('input', handleInterferenceInputEvent);
+
+        const refocusInterferenceInput = function (e) {
+            e.preventDefault();
+            interferenceInput.focus();
+            // On some mobile browsers, double focusing helps trigger the keyboard
+            setTimeout(() => interferenceInput.focus(), 10);
+        };
+
+        interferenceSurface.addEventListener('mousedown', refocusInterferenceInput);
+        interferenceSurface.addEventListener('touchstart', refocusInterferenceInput, { passive: false });
+        interferenceSurface.addEventListener('click', refocusInterferenceInput);
         interferenceSurface.addEventListener('paste', function (e) {
             e.preventDefault();
         });
@@ -1765,6 +1793,11 @@ async function startGame() {
         document.getElementById('score').textContent = '0';
         document.getElementById('time-left').textContent = String(INTERFERENCE_GLOBAL_SECONDS);
         document.getElementById('last-speed').textContent = '0';
+
+        if (interferenceInput) {
+            interferenceInput.value = '';
+            interferenceInput.placeholder = 'tap here, then retype the paragraph';
+        }
 
         if (interferenceParagraph) {
             interferenceParagraph.textContent = interferenceParagraphText;

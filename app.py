@@ -744,7 +744,8 @@ def admin_dashboard():
                              stats={},
                              mode_stats={},
                              total_sessions=0,
-                             feature_stats={})
+                             feature_stats={},
+                             top_players={})
     
     # Calculate overall statistics
     total_sessions = len(all_telemetry)
