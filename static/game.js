@@ -1635,7 +1635,10 @@ async function finalizeGame(result) {
 
     try {
         if (typeof window.sendTelemetry === 'function') {
-            await window.sendTelemetry(playerName, currentModeLabel, result.score, result);
+            const telemetryResult = await window.sendTelemetry(playerName, currentModeLabel, result.score, result);
+            if (telemetryResult && typeof telemetryResult === 'object') {
+                Object.assign(result, telemetryResult);
+            }
         }
     } catch (err) {
         console.error('Telemetry send failed:', err);

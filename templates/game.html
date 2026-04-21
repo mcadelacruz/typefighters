@@ -114,35 +114,44 @@
     <div id="step-over" style="display:none;flex-direction:column;align-items:flex-start;width:100%;">
         <div class="menu-title mb-4">game over</span></div>
         <div id="game-over-reason" class="mb-3"></div>
-        <div class="final-stats">
-            <div>mode: <span id="final-mode">{{ mode_title }}</span></div>
-            <div>final score: <span id="final-score"></span></div>
-            <div><span id="final-stat-1-label">words typed</span>: <span id="final-stat-1-value"></span></div>
-            <div id="final-stat-2-row"><span id="final-stat-2-label">average speed</span>: <span id="final-stat-2-value"></span></div>
-            <div id="final-stat-3-row"><span id="final-stat-3-label">result</span>: <span id="final-stat-3-value"></span></div>
-        </div>
-        <div id="final-leaderboard-panel" class="final-leaderboard" hidden>
-            <div class="final-leaderboard-title">leaderboard placement</div>
-            <div class="final-leaderboard-meta">
-                <span id="final-leaderboard-rank"></span>
-                <span id="final-leaderboard-window"></span>
+        <div class="final-screen-container">
+            <div class="final-stats">
+                <div>mode: <span id="final-mode">{{ mode_title }}</span></div>
+                <div>final score: <span id="final-score"></span></div>
+                <div><span id="final-stat-1-label">words typed</span>: <span id="final-stat-1-value"></span></div>
+                <div id="final-stat-2-row"><span id="final-stat-2-label">average speed</span>: <span id="final-stat-2-value"></span></div>
+                <div id="final-stat-3-row"><span id="final-stat-3-label">result</span>: <span id="final-stat-3-value"></span></div>
+                <div class="final-screen-buttons" style="margin-top:2.5rem;display:flex;flex-direction:column;gap:0.5rem;width:100%;">
+                    <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}?mode={{ selected_mode }}'">play again</button>
+                    <button id="final-highscores-button" class="menu-link" data-base-href="{{ url_for('highscores', mode=selected_mode) }}" onclick="window.location.href='{{ url_for('highscores', mode=selected_mode) }}'">high scores</button>
+                    <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">menu</button>
+                </div>
             </div>
-            <div class="responsive-table final-leaderboard-table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>rank</th>
-                            <th>name</th>
-                            <th>score</th>
-                        </tr>
-                    </thead>
-                    <tbody id="final-leaderboard-body"></tbody>
-                </table>
+            <div id="final-leaderboard-panel" class="final-leaderboard" hidden>
+                <div class="final-leaderboard-title">leaderboard placement</div>
+                <div class="final-leaderboard-meta">
+                    <span id="final-leaderboard-rank"></span>
+                    <span id="final-leaderboard-window"></span>
+                </div>
+                <div class="responsive-table final-leaderboard-table-wrap">
+                    <table>
+                        <colgroup>
+                            <col class="final-leaderboard-col-rank">
+                            <col class="final-leaderboard-col-name">
+                            <col class="final-leaderboard-col-score">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>rank</th>
+                                <th>name</th>
+                                <th>score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="final-leaderboard-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
-        <button class="menu-link" onclick="window.location.href='{{ url_for('play') }}?mode={{ selected_mode }}'">play again</button>
-        <button id="final-highscores-button" class="menu-link" data-base-href="{{ url_for('highscores', mode=selected_mode) }}" onclick="window.location.href='{{ url_for('highscores', mode=selected_mode) }}'">high scores</button>
-        <button class="menu-link" onclick="window.location.href='{{ url_for('menu') }}'">menu</button>
     </div>
 </div>
 {% endblock %}

@@ -621,6 +621,7 @@ def api_save_telemetry():
 
     should_save_telemetry = quality['passed']
     should_save_high_score = game_mode != 'Classic'
+    high_score = None
 
     if should_save_high_score:
         high_score = _build_high_score_row(
@@ -637,12 +638,16 @@ def api_save_telemetry():
     if not should_save_telemetry:
         if should_save_high_score:
             db.session.commit()
+            leaderboard_snapshot = build_leaderboard_snapshot(high_score)
+        else:
+            leaderboard_snapshot = {}
         return jsonify({
             'message': 'Telemetry ignored due to low quality',
             'training_saved': False,
             'quality_score': quality['quality_score'],
             'quality_threshold': quality['quality_threshold'],
-            'reasons': quality['reasons']
+            'reasons': quality['reasons'],
+            **leaderboard_snapshot
         }), 202
 
     telemetry_row = TelemetryData(
@@ -667,7 +672,8 @@ def api_save_telemetry():
         'training_saved': True,
         'id': telemetry_row.id,
         'quality_score': quality['quality_score'],
-        'quality_threshold': quality['quality_threshold']
+        'quality_threshold': quality['quality_threshold'],
+        **build_leaderboard_snapshot(high_score)
     }), 201
 
 
