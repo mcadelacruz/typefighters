@@ -1,46 +1,42 @@
+
+/* Highscores table column widths - improved for flexibility and alignment */
 .highscores-table-wrap table th:nth-child(1),
 .highscores-table-wrap table td:nth-child(1) {
-    max-width: 2.5em;
-    width: 2.5em;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 2.5em;
+    max-width: 3.5em;
+    width: 3em;
+    text-align: right;
     white-space: nowrap;
 }
 
 .highscores-table-wrap table th:nth-child(2),
 .highscores-table-wrap table td:nth-child(2) {
-    max-width: 7em;
-    width: 7em;
+    min-width: 7em;
+    max-width: 12em;
+    width: 10em;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .highscores-table-wrap table th:nth-child(3),
 .highscores-table-wrap table td:nth-child(3) {
-    max-width: 4em;
-    width: 4em;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 4em;
+    max-width: 7em;
+    width: 5em;
+    text-align: right;
     white-space: nowrap;
 }
 
-.highscores-table-wrap table th:nth-child(4),
-.highscores-table-wrap table td:nth-child(4) {
-    max-width: 6em;
-    width: 6em;
+/* Stat columns (dynamic, start at 4th column) */
+.highscores-table-wrap table th:nth-child(n+4),
+.highscores-table-wrap table td:nth-child(n+4) {
+    min-width: 5em;
+    max-width: 10em;
+    width: 7em;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.highscores-table-wrap table th:nth-child(5),
-.highscores-table-wrap table td:nth-child(5) {
-    max-width: 8em;
-    width: 8em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
@@ -368,10 +364,19 @@ body.home-page.home-loader-ready #page-root {
 }
 
 .score-tabs {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    margin-bottom: 1rem;
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+    .score-tabs {
+        gap: 0.5rem 0.5rem;
+        row-gap: 0.5rem;
+    }
+    .score-tab {
+        margin: 0 !important;
+    }
 }
 
 .highscores-layout {
@@ -399,14 +404,16 @@ body.home-page.home-loader-ready #page-root {
     -webkit-overflow-scrolling: touch;
 }
 
+
 .highscores-table-wrap table {
     width: 100%;
     min-width: 0;
     max-width: 100vw;
-    table-layout: auto;
+    table-layout: fixed;
     word-break: break-word;
     overflow-wrap: anywhere;
 }
+
 
 .highscores-table-wrap table th,
 .highscores-table-wrap table td {
@@ -417,7 +424,7 @@ body.home-page.home-loader-ready #page-root {
     white-space: normal;
     word-break: break-word;
     overflow-wrap: anywhere;
-    max-width: 1px;
+    /* Remove max-width: 1px to allow column sizing above to work */
 }
 
 .highscores-table-wrap table thead th {
