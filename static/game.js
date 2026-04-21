@@ -1834,7 +1834,13 @@ function submitWord(input) {
                 reason: data.reason === 'time_up' ? 'Time is up!' : 'You misspelled the word!',
                 score: data.score,
                 total_attempts: data.total_attempts,
-                avg_speed: data.avg_speed
+                avg_speed: data.avg_speed,
+                leaderboard_rank: data.leaderboard_rank,
+                leaderboard_total: data.leaderboard_total,
+                leaderboard_window_start: data.leaderboard_window_start,
+                leaderboard_window_end: data.leaderboard_window_end,
+                leaderboard_page: data.leaderboard_page,
+                leaderboard_rows: data.leaderboard_rows
             });
         }
     });
@@ -1935,7 +1941,13 @@ function updateTimer() {
                         reason: data.reason === 'time_up' ? 'Time is up!' : 'You misspelled the word!',
                         score: data.score,
                         total_attempts: data.total_attempts,
-                        avg_speed: data.avg_speed
+                        avg_speed: data.avg_speed,
+                        leaderboard_rank: data.leaderboard_rank,
+                        leaderboard_total: data.leaderboard_total,
+                        leaderboard_window_start: data.leaderboard_window_start,
+                        leaderboard_window_end: data.leaderboard_window_end,
+                        leaderboard_page: data.leaderboard_page,
+                        leaderboard_rows: data.leaderboard_rows
                     });
                 }
             });
