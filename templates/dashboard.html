@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block body_class %}dashboard-page{% endblock %}
+
 {% block content %}
 <div class="dashboard-layout">
     <div class="menu-title">telemetry dashboard</div>
@@ -170,8 +172,23 @@
 
 {% block style_overrides %}
 <style>
+    .dashboard-page .center-root {
+        align-items: flex-start;
+        padding-top: clamp(1rem, 3vw, 2rem);
+        padding-bottom: clamp(1rem, 3vw, 2rem);
+    }
+
+    .dashboard-page .center-content {
+        width: min(1280px, calc(100vw - 2rem));
+        max-width: min(1280px, calc(100vw - 2rem));
+        padding: 0 clamp(1rem, 2vw, 2rem);
+        align-items: stretch;
+    }
+
     .dashboard-layout {
         width: 100%;
+        max-width: 1280px;
+        margin: 0 auto;
     }
     
     .dashboard-header {
@@ -197,9 +214,10 @@
     
     .dashboard-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);
         gap: 3rem;
         margin-bottom: 3rem;
+        align-items: start;
     }
     
     @media (max-width: 900px) {
@@ -212,10 +230,12 @@
     .dashboard-column {
         display: flex;
         flex-direction: column;
+        min-width: 0;
     }
     
     .dashboard-section {
         margin-bottom: 3rem;
+        min-width: 0;
     }
     
     .dashboard-section.full-width {
@@ -242,12 +262,12 @@
     .dashboard-table table {
         font-size: 0.85rem;
         width: 100%;
-        min-width: 620px;
+        min-width: 0;
         margin-bottom: 0;
     }
 
     .dashboard-section.full-width .dashboard-table table {
-        min-width: 760px;
+        min-width: 0;
     }
     
     .dashboard-table th {

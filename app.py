@@ -157,6 +157,140 @@ MODE_LABEL_MAP = {
     'overload': 'Overload'
 }
 
+DEFAULT_TELEMETRY_QUALITY_RULES = {
+    'min_score': 30,
+    'min_wpm': 8.0,
+    'min_session_length': 20.0,
+    'min_keystrokes': 60,
+    'max_error_correction_rate': 0.40,
+    'max_pause_per_minute': 20.0,
+    'quality_pass_score': 65.0
+}
+
+MODE_TELEMETRY_QUALITY_RULES = {
+    'Classic': {
+        'min_score': 30,
+        'min_wpm': 10.0,
+        'min_session_length': 25.0,
+        'min_keystrokes': 70,
+        'max_error_correction_rate': 0.35,
+        'max_pause_per_minute': 18.0,
+        'quality_pass_score': 68.0
+    },
+    'Meltdown': {
+        'min_score': 25,
+        'min_wpm': 9.0,
+        'min_session_length': 20.0,
+        'min_keystrokes': 60,
+        'max_error_correction_rate': 0.45,
+        'max_pause_per_minute': 22.0,
+        'quality_pass_score': 63.0
+    },
+    'Flow State': {
+        'min_score': 20,
+        'min_wpm': 8.0,
+        'min_session_length': 25.0,
+        'min_keystrokes': 55,
+        'max_error_correction_rate': 0.40,
+        'max_pause_per_minute': 24.0,
+        'quality_pass_score': 62.0
+    },
+    'Interference': {
+        'min_score': 25,
+        'min_wpm': 9.0,
+        'min_session_length': 20.0,
+        'min_keystrokes': 60,
+        'max_error_correction_rate': 0.45,
+        'max_pause_per_minute': 22.0,
+        'quality_pass_score': 63.0
+    },
+    'Overload': {
+        'min_score': 35,
+        'min_wpm': 11.0,
+        'min_session_length': 18.0,
+        'min_keystrokes': 75,
+        'max_error_correction_rate': 0.50,
+        'max_pause_per_minute': 25.0,
+        'quality_pass_score': 66.0
+    }
+}
+
+
+def _clamp(value, min_value, max_value):
+    return max(min_value, min(value, max_value))
+
+
+def _build_high_score_row(player_name, game_mode, score, typing_speed_wpm, total_keystrokes, data, mode_stats):
+    return HighScore(
+        name=player_name,
+        game_mode=game_mode,
+        score=score,
+        avg_speed=typing_speed_wpm,
+        words_typed=max(0, int(round(total_keystrokes / 5.0))),
+        final_stats_json=json.dumps(build_final_stats(game_mode, {
+            'avg_speed': typing_speed_wpm,
+            'total_attempts': max(0, int(round(total_keystrokes / 5.0))),
+            'flow_tempo_points': data.get('flow_tempo_points'),
+            'flow_word_points': data.get('flow_word_points'),
+            'flow_on_target_seconds': data.get('flow_on_target_seconds'),
+            'flow_avg_closeness_pct': data.get('flow_avg_closeness_pct'),
+            'interference_wpm': data.get('interference_wpm'),
+            'reaction_bonus': data.get('reaction_bonus'),
+            'avg_reaction_time': data.get('avg_reaction_time'),
+            'keystrokes': data.get('keystrokes'),
+            'keys_per_second': data.get('keys_per_second'),
+            'bonus_multiplier': data.get('bonus_multiplier')
+        }, mode_stats))
+    )
+
+
+def assess_telemetry_quality(game_mode, score, typing_speed_wpm, session_length, total_keystrokes, error_correction_rate, pause_frequency):
+    rules = dict(DEFAULT_TELEMETRY_QUALITY_RULES)
+    rules.update(MODE_TELEMETRY_QUALITY_RULES.get(game_mode, {}))
+
+    minutes = session_length / 60.0 if session_length > 0 else 0.0
+    pauses_per_minute = (pause_frequency / minutes) if minutes > 0 else float('inf')
+
+    hard_fail_reasons = []
+    if score < rules['min_score']:
+        hard_fail_reasons.append('score_below_minimum')
+    if typing_speed_wpm < rules['min_wpm']:
+        hard_fail_reasons.append('wpm_below_minimum')
+    if session_length < rules['min_session_length']:
+        hard_fail_reasons.append('session_too_short')
+    if total_keystrokes < rules['min_keystrokes']:
+        hard_fail_reasons.append('not_enough_keystrokes')
+    if error_correction_rate > rules['max_error_correction_rate']:
+        hard_fail_reasons.append('error_rate_too_high')
+    if pauses_per_minute > rules['max_pause_per_minute']:
+        hard_fail_reasons.append('pause_frequency_too_high')
+
+    score_quality = _clamp(score / (rules['min_score'] * 2.0), 0.0, 1.0)
+    wpm_quality = _clamp(typing_speed_wpm / (rules['min_wpm'] * 2.0), 0.0, 1.0)
+    length_quality = _clamp(session_length / (rules['min_session_length'] * 2.0), 0.0, 1.0)
+    keystroke_quality = _clamp(total_keystrokes / (rules['min_keystrokes'] * 2.0), 0.0, 1.0)
+    error_quality = _clamp(1.0 - (error_correction_rate / rules['max_error_correction_rate']), 0.0, 1.0)
+    pause_quality = _clamp(1.0 - (pauses_per_minute / rules['max_pause_per_minute']), 0.0, 1.0)
+
+    weighted_quality_score = (
+        (score_quality * 0.25) +
+        (wpm_quality * 0.20) +
+        (length_quality * 0.15) +
+        (keystroke_quality * 0.15) +
+        (error_quality * 0.15) +
+        (pause_quality * 0.10)
+    ) * 100.0
+
+    passed = (not hard_fail_reasons) and (weighted_quality_score >= rules['quality_pass_score'])
+
+    return {
+        'passed': passed,
+        'quality_score': round(weighted_quality_score, 2),
+        'quality_threshold': rules['quality_pass_score'],
+        'reasons': hard_fail_reasons,
+        'rules': rules
+    }
+
 
 def _coerce_int(value, default=0):
     try:
@@ -462,6 +596,53 @@ def api_save_telemetry():
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
 
+    if not (0.0 <= error_correction_rate <= 1.0):
+        return jsonify({'error': 'error_correction_rate must be between 0 and 1'}), 400
+    if flight_time_variance < 0:
+        return jsonify({'error': 'flight_time_variance must be non-negative'}), 400
+    if any(value < 0 for value in [avg_dwell_time, typing_speed_wpm, pause_frequency, session_length, total_keystrokes]):
+        return jsonify({'error': 'telemetry metrics cannot be negative'}), 400
+
+    # Reject obvious outliers likely caused by invalid instrumentation or abusive input.
+    if typing_speed_wpm > 260 or total_keystrokes > 5000 or session_length > 900:
+        return jsonify({'error': 'telemetry metrics out of expected bounds'}), 400
+
+    quality = assess_telemetry_quality(
+        game_mode=game_mode,
+        score=score,
+        typing_speed_wpm=typing_speed_wpm,
+        session_length=session_length,
+        total_keystrokes=total_keystrokes,
+        error_correction_rate=error_correction_rate,
+        pause_frequency=pause_frequency
+    )
+
+    should_save_telemetry = quality['passed']
+    should_save_high_score = game_mode != 'Classic'
+
+    if should_save_high_score:
+        high_score = _build_high_score_row(
+            player_name=player_name,
+            game_mode=game_mode,
+            score=score,
+            typing_speed_wpm=typing_speed_wpm,
+            total_keystrokes=total_keystrokes,
+            data=data,
+            mode_stats=mode_stats
+        )
+        db.session.add(high_score)
+
+    if not should_save_telemetry:
+        if should_save_high_score:
+            db.session.commit()
+        return jsonify({
+            'message': 'Telemetry ignored due to low quality',
+            'training_saved': False,
+            'quality_score': quality['quality_score'],
+            'quality_threshold': quality['quality_threshold'],
+            'reasons': quality['reasons']
+        }), 202
+
     telemetry_row = TelemetryData(
         player_name=player_name,
         game_mode=game_mode,
@@ -476,39 +657,16 @@ def api_save_telemetry():
         total_keystrokes=total_keystrokes
     )
 
-    if game_mode == 'Classic':
-        db.session.add(telemetry_row)
-        db.session.commit()
-        return jsonify({'message': 'Telemetry saved', 'id': telemetry_row.id}), 201
-
-    # Keep HighScore in sync per mode while telemetry is collected for ML training.
-    high_score = HighScore(
-        name=player_name,
-        game_mode=game_mode,
-        score=score,
-        avg_speed=typing_speed_wpm,
-        words_typed=max(0, int(round(total_keystrokes / 5.0))),
-        final_stats_json=json.dumps(build_final_stats(game_mode, {
-            'avg_speed': typing_speed_wpm,
-            'total_attempts': max(0, int(round(total_keystrokes / 5.0))),
-            'flow_tempo_points': data.get('flow_tempo_points'),
-            'flow_word_points': data.get('flow_word_points'),
-            'flow_on_target_seconds': data.get('flow_on_target_seconds'),
-            'flow_avg_closeness_pct': data.get('flow_avg_closeness_pct'),
-            'interference_wpm': data.get('interference_wpm'),
-            'reaction_bonus': data.get('reaction_bonus'),
-            'avg_reaction_time': data.get('avg_reaction_time'),
-            'keystrokes': data.get('keystrokes'),
-            'keys_per_second': data.get('keys_per_second'),
-            'bonus_multiplier': data.get('bonus_multiplier')
-        }, mode_stats))
-    )
-
     db.session.add(telemetry_row)
-    db.session.add(high_score)
     db.session.commit()
 
-    return jsonify({'message': 'Telemetry saved', 'id': telemetry_row.id}), 201
+    return jsonify({
+        'message': 'Telemetry saved',
+        'training_saved': True,
+        'id': telemetry_row.id,
+        'quality_score': quality['quality_score'],
+        'quality_threshold': quality['quality_threshold']
+    }), 201
 
 
 @app.route('/admin/export_data', methods=['GET'])

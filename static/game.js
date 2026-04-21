@@ -1025,6 +1025,21 @@ function handleInterferenceTyping(e) {
         interferenceTypedIndex += 1;
         updateInterferenceCursor();
         updateInterferenceScore();
+        
+        // End game when entire paragraph is typed
+        if (interferenceTypedIndex === interferenceParagraphText.length && !gameEnded) {
+            clearInterval(timerInterval);
+            finalizeGame({
+                reason: 'Paragraph completed!',
+                score: interferenceBaseScore + interferenceReactionBonus,
+                total_attempts: interferenceReactionCount,
+                avg_speed: 0,
+                interference_wpm: interferenceCurrentWpm,
+                reaction_bonus: interferenceReactionBonus,
+                reaction_count: interferenceReactionCount,
+                avg_reaction_time: getInterferenceAverageReactionTime()
+            });
+        }
         return;
     }
 
