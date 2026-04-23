@@ -114,6 +114,17 @@ let meltdownWordPool = [...DEFAULT_MELTDOWN_WORDS];
 let flowWordPool = [...DEFAULT_FLOW_WORDS];
 let interferenceParagraphPool = [DEFAULT_INTERFERENCE_PARAGRAPH];
 
+function triggerGameEffect(elementId, effectClass, durationMs) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.classList.remove(effectClass);
+    void el.offsetWidth;
+    el.classList.add(effectClass);
+    setTimeout(() => {
+        if (el) el.classList.remove(effectClass);
+    }, durationMs);
+}
+
 function sanitizeStringArray(items) {
     if (!Array.isArray(items)) return [];
     return items
@@ -320,6 +331,7 @@ function updateMeltdownHud() {
 
 function handleMeltdownSuccess() {
     if (gameEnded) return;
+    triggerGameEffect('current-word', 'effect-meltdown-success', 500);
     const remaining = Math.max(0, meltdownRoundDeadline - performance.now());
     const bonus = Math.min(80, Math.floor(remaining / 100));
     const wordPoints = 50 + (meltdownCurrentWord.length * 2);
@@ -693,6 +705,7 @@ function handleFlowSubmit() {
 
     recomputeFlowCurrentWpm();
     const submitDelta = Math.abs(flowCurrentWpm - flowTargetWpm);
+    triggerGameEffect('flow-marquee-wrap', 'effect-flow-sweet', 400);
     const wordPoints = submitDelta <= FLOW_SWEET_BAND
         ? FLOW_WORD_POINTS * 2
         : FLOW_WORD_POINTS;
@@ -987,6 +1000,8 @@ function scheduleNextInterferenceDistraction() {
 
 function closeInterferenceModal() {
     if (!interferenceModalOpen || gameEnded) return;
+
+    triggerGameEffect('interference-paragraph', 'effect-interference-glitch', 300);
 
     const reactionTime = Math.max(1, Date.now() - interferenceModalShownAt);
     const bonus = Math.min(120, Math.floor(50000 / reactionTime));
@@ -1529,6 +1544,7 @@ function setOverloadProgress() {
         overloadStatus.textContent = bonusReady ? 'overcharge ready' : 'powering up...';
     }
     if (overloadMeter) overloadMeter.setAttribute('aria-valuenow', String(pct));
+    triggerGameEffect('game-box', 'effect-overload-burst', 200);
 }
 
 let overloadPreviousValueLength = 0;
@@ -1724,6 +1740,7 @@ function renderFinalLeaderboard(result) {
 
 async function finalizeGame(result) {
     if (gameEnded) return;
+    triggerGameEffect('page-root', 'effect-game-over', 500);
     gameEnded = true;
 
     if (timerInterval) {
@@ -1936,6 +1953,7 @@ function submitWord(input) {
     .then(res => res.json())
     .then(data => {
         if (data.action === 'new_word') {
+            triggerGameEffect('current-word', 'effect-classic-success', 400);
             typeText(document.getElementById('current-word'), data.word, 40, () => {
                 adjustWordFontSize(data.word);
             });
