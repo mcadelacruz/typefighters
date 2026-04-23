@@ -241,7 +241,7 @@ function setMeltdownDangerState(inDanger) {
 
     if (inDanger) {
         vignette.style.opacity = '1';
-        vignette.style.background = 'radial-gradient(circle at center, rgba(255, 0, 0, 0.05) 15%, rgba(180, 0, 0, 0.35) 55%, rgba(130, 0, 0, 0.6) 100%)';
+        vignette.style.background = 'radial-gradient(circle at center, rgba(255, 0, 0, 0.0) 20%, rgba(160, 0, 0, 0.22) 58%, rgba(110, 0, 0, 0.38) 100%)';
         vignette.style.animation = 'meltdownPulse 0.6s ease-in-out infinite';
         return;
     }
