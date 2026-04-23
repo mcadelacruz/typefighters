@@ -17,11 +17,11 @@
     'overload': 'overload'
 } %}
 {% set mode_instruction_map = {
-    'classic': 'type each word and press enter. typing faster and making fewer mistakes will give you more points.',
-    'meltdown': 'type the long word and press enter before time runs out. typing it correctly and quickly will give you more points, while mistakes or running out of time will cost you lives.',
-    'flow-state': 'type the underlined word and try to keep your speed close to the target wpm for a higher score. typing much faster or slower than the target will give you fewer points.',
-    'interference': 'retype the paragraph exactly while popups appear. staying accurate and keeping a steady speed will give the best score. close distractions quickly and keep typing.',
-    'overload': 'for 30 seconds, press different keys quickly to fill the meter. fast and varied input gives more points and increases overcharge. repeating the same key gives very little score.'
+    'classic': 'The pure test of speed. Type each word and press Space or Enter to submit. Precision is paramount—fast, clean typing yields the highest scores.',
+    'meltdown': 'Intense pressure. Type complex words before the reactor overheats. Press Space or Enter to submit. A single typo or a timeout costs you a life.',
+    'flow-state': 'Master your rhythm. Type the underlined word to maintain your tempo. Keep your speed within the target range—typing too fast or too slow reduces your efficiency.',
+    'interference': 'Total concentration. Retype the text exactly while battling invasive popups. Close distractions quickly and maintain your pace despite the chaos.',
+    'overload': 'Mechanical surge. Rapidly press a variety of keys to fill the power meter. Repetitive tapping is penalized—be fast, be varied, and max out the overcharge.'
 } %}
 {% set mode_title = mode_title_map.get(selected_mode, 'classic') %}
 {% set mode_instruction = mode_instruction_map.get(selected_mode, mode_instruction_map['classic']) %}
