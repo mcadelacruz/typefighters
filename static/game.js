@@ -1234,56 +1234,101 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    document.getElementById('player-name-input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') document.getElementById('name-next-btn').click();
-    });
+    const playerNameInput = document.getElementById('player-name-input');
+    if (playerNameInput) {
+        playerNameInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') document.getElementById('name-next-btn').click();
+        });
+        playerNameInput.addEventListener('keyup', function(e) {
+            if (e.keyCode === 13 && e.key !== 'Enter') document.getElementById('name-next-btn').click();
+        });
+    }
 
-    document.getElementById('start-input').addEventListener('keydown', async function(e) {
-        if (e.key === 'Enter' && this.value.trim().toLowerCase() === 'start') {
-            await ensureModeContentLibrariesLoaded();
-            transitionStep('step-start', 'step-game', function() {
-                startGame();
-            });
-        }
-    });
+    const startInput = document.getElementById('start-input');
+    if (startInput) {
+        const handleStartEvent = async function() {
+            if (startInput.value.trim().toLowerCase() === 'start') {
+                await ensureModeContentLibrariesLoaded();
+                transitionStep('step-start', 'step-game', function() {
+                    startGame();
+                });
+                startInput.value = '';
+            }
+        };
+        startInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') handleStartEvent();
+        });
+        startInput.addEventListener('keyup', function(e) {
+            if (e.keyCode === 13 && e.key !== 'Enter') handleStartEvent();
+        });
+        startInput.addEventListener('input', handleStartEvent);
+    }
 
     const wordInput = document.getElementById('word-input');
     if (wordInput && (isMeltdownMode() || isOverloadMode() || currentMode === 'classic')) {
-        wordInput.addEventListener('keydown', function(e) {
+        const trySubmitWordInput = function(forceSubmit = false) {
+            const val = wordInput.value;
+            if (!forceSubmit && !val.endsWith(' ') && !val.endsWith('\n')) return;
+            
             if (isMeltdownMode()) {
-                if (e.key !== 'Enter') return;
-
-                const input = this.value.trim();
+                const input = val.trim();
                 if (!input) {
-                    handleMeltdownPenalty('typo');
-                    this.value = '';
+                    if (forceSubmit) {
+                        handleMeltdownPenalty('typo');
+                        wordInput.value = '';
+                    }
                     return;
                 }
-
                 if (input === meltdownCurrentWord) {
                     handleMeltdownSuccess();
                 } else {
                     handleMeltdownPenalty('typo');
                 }
-                this.value = '';
+                wordInput.value = '';
                 return;
             }
+            
+            if (currentMode === 'classic') {
+                const input = val.trim();
+                if (input && sessionId) {
+                    if (lastWordStart) {
+                        const speed = Date.now() - lastWordStart;
+                        const speedEl = document.getElementById('last-speed');
+                        if (speedEl) speedEl.textContent = speed;
+                    }
+                    submitWord(input);
+                }
+                wordInput.value = '';
+                return;
+            }
+        };
 
+        wordInput.addEventListener('keydown', function(e) {
             if (isOverloadMode()) {
                 handleOverloadKeydown(e);
                 return;
             }
-
             if (e.key === 'Enter') {
-                const input = this.value.trim();
-                if (input && sessionId) {
-                    if (lastWordStart) {
-                        const speed = Date.now() - lastWordStart;
-                        document.getElementById('last-speed').textContent = speed;
-                    }
-                    submitWord(input);
-                }
-                this.value = '';
+                trySubmitWordInput(true);
+            }
+        });
+        
+        wordInput.addEventListener('keyup', function(e) {
+            if (isOverloadMode()) return;
+            if (e.keyCode === 13 && e.key !== 'Enter') {
+                trySubmitWordInput(true);
+            }
+        });
+        
+        wordInput.addEventListener('input', function(e) {
+            if (isOverloadMode()) {
+                handleOverloadInput(e);
+                return;
+            }
+            if (e.inputType === 'insertLineBreak' || e.data === '\n') {
+                trySubmitWordInput(true);
+            } else {
+                trySubmitWordInput(false);
             }
         });
     }
@@ -1310,20 +1355,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const flowInput = document.getElementById('flow-input');
+    let previousFlowInputLength = 0;
     if (flowInput && isFlowMode()) {
         flowInput.addEventListener('keydown', function (e) {
             if (e.key === 'Tab') {
                 e.preventDefault();
                 return;
             }
-
             if (e.key === 'Enter') {
                 e.preventDefault();
                 return;
-            }
-
-            if (flowIsCountableKey(e) && !e.repeat) {
-                recordFlowKeypress();
             }
         });
 
@@ -1333,7 +1374,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (feedback) {
                 feedback.classList.remove('feedback-wrong');
             }
+            
+            if (this.value.length !== previousFlowInputLength) {
+                const diff = Math.abs(this.value.length - previousFlowInputLength);
+                for (let i = 0; i < diff; i++) {
+                    recordFlowKeypress();
+                }
+            }
+            
             tryAutoSubmitFlowWord();
+            previousFlowInputLength = this.value.length;
         });
     }
 
@@ -1481,15 +1531,45 @@ function setOverloadProgress() {
     if (overloadMeter) overloadMeter.setAttribute('aria-valuenow', String(pct));
 }
 
+let overloadPreviousValueLength = 0;
+function handleOverloadInput(e) {
+    if (gameEnded || !timerInterval) return;
+    const inputEl = e.target;
+    if (!inputEl) return;
+    const val = inputEl.value;
+    
+    if (val.length > overloadPreviousValueLength) {
+        const addedChars = val.length - overloadPreviousValueLength;
+        const lastChar = val[val.length - 1].toLowerCase();
+        
+        if (lastChar === overloadLastCountedKey) {
+            overloadSameKeyStreak += addedChars;
+            if (overloadSameKeyStreak <= 3) {
+                overloadKeystrokes += addedChars;
+            }
+        } else {
+            overloadLastCountedKey = lastChar;
+            overloadSameKeyStreak = 1;
+            overloadKeystrokes += addedChars;
+        }
+        setOverloadProgress();
+    }
+    inputEl.value = '';
+    overloadPreviousValueLength = 0;
+}
+
 function handleOverloadKeydown(e) {
     if (gameEnded) return;
     if (!timerInterval) return;
     if (e.repeat) return;
 
     const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
+    if (key === 'unidentified') return;
+
     if (key && key === overloadLastCountedKey) {
         overloadSameKeyStreak += 1;
         if (overloadSameKeyStreak > 3) {
+            e.preventDefault();
             return;
         }
     } else {
