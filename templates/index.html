@@ -2,4 +2,20 @@
 
 {% block body_class %}home-page home-loader-active{% endblock %}
 
-{% block content %}{% endblock %}
+{% block content %}
+<div id="disclaimer-panel" style="display:none; flex-direction:column; align-items:flex-start; width:100%; opacity:0; transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1);">
+    <div class="menu-title mb-4" style="font-size:clamp(1.4rem,4vw,2.2rem);">data notice</div>
+    <div style="max-width:52ch; font-size:1rem; line-height:1.7; color:rgba(255,255,255,0.82); margin-bottom:2rem;">
+        <p style="margin:0 0 1rem 0;">
+            this game collects <strong style="color:#fff; font-weight:500;">anonymous typing telemetry</strong> — key timings, error rates, and typing speed — while you play.
+        </p>
+        <p style="margin:0 0 1rem 0;">
+            this data is collected strictly for a <strong style="color:#fff; font-weight:500;">school research project</strong> and will <em>never</em> be sold, shared with third parties, or used for any personal gain.
+        </p>
+        <p style="margin:0; color:rgba(255,255,255,0.55); font-size:0.9rem;">
+            no names are linked to the telemetry. all data is used purely for educational and analytical purposes.
+        </p>
+    </div>
+    <button id="disclaimer-agree-btn" class="menu-link" type="button" style="border:1px solid rgba(255,255,255,0.35); padding:0.45rem 1.1rem; font-size:1.1rem;">i agree</button>
+</div>
+{% endblock %}

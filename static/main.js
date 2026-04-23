@@ -49,6 +49,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (isHomePage) {
         const loader = document.getElementById('boot-loader');
+        const CONSENT_KEY = 'typefighters_telemetry_consent';
+
+        function hasConsent() {
+            try { return localStorage.getItem(CONSENT_KEY) === '1'; } catch(e) { return false; }
+        }
+        function saveConsent() {
+            try { localStorage.setItem(CONSENT_KEY, '1'); } catch(e) {}
+        }
+
+        function goToMenu() {
+            showTransitionBlank(() => { window.location.href = '/menu'; }, 400);
+        }
+
+        function showDisclaimer() {
+            const panel = document.getElementById('disclaimer-panel');
+            const agreeBtn = document.getElementById('disclaimer-agree-btn');
+            if (!panel) { goToMenu(); return; }
+
+            // Reveal the page-root area so the panel is visible
+            body.classList.remove('home-loader-exiting');
+            body.classList.add('home-loader-ready');
+
+            panel.style.display = 'flex';
+            // Tick to trigger transition
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                panel.style.opacity = '1';
+            }));
+
+            if (agreeBtn) {
+                agreeBtn.addEventListener('click', function() {
+                    saveConsent();
+                    goToMenu();
+                });
+            }
+        }
+
         if (loader) {
             body.classList.add('home-loader-active');
             loader.classList.add('animate');
@@ -57,11 +93,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 body.classList.add('home-loader-exiting');
 
                 setTimeout(() => {
-                    window.location.href = '/menu';
+                    if (hasConsent()) {
+                        window.location.href = '/menu';
+                    } else {
+                        showDisclaimer();
+                    }
                 }, HOME_LOADER_FADE_MS);
             }, HOME_LOADER_DURATION_MS);
         } else {
-            window.location.href = '/menu';
+            if (hasConsent()) {
+                window.location.href = '/menu';
+            } else {
+                showDisclaimer();
+            }
         }
     }
 
