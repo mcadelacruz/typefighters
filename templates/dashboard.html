@@ -11,62 +11,59 @@
         <div class="meta-item">sessions: <span class="meta-value">{{ total_sessions }}</span></div>
     </div>
     
-    <!-- Main Content Grid -->
-    <div class="dashboard-grid">
-        <!-- Left Column: Mode Distribution -->
-        <div class="dashboard-column">
-            <div class="section-header">
-                <div class="section-title">mode overview</div>
-            </div>
-            <div class="responsive-table dashboard-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>mode</th>
-                            <th>count</th>
-                            <th>avg score</th>
-                            <th>avg wpm</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for mode, data in stats.items() %}
-                        <tr>
-                            <td>{{ mode }}</td>
-                            <td>{{ data.count }}</td>
-                            <td>{{ "%.0f"|format(data.avg_score) }}</td>
-                            <td>{{ "%.2f"|format(data.avg_wpm) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    <!-- Mode Overview -->
+    <div class="dashboard-section">
+        <div class="section-header">
+            <div class="section-title">mode overview</div>
         </div>
-        
-        <!-- Right Column: Top Players -->
-        <div class="dashboard-column">
-            <div class="section-header">
-                <div class="section-title">top performers</div>
+        <div class="responsive-table dashboard-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>mode</th>
+                        <th>count</th>
+                        <th>avg score</th>
+                        <th>avg wpm</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mode, data in stats.items() %}
+                    <tr>
+                        <td>{{ mode }}</td>
+                        <td>{{ data.count }}</td>
+                        <td>{{ "%.0f"|format(data.avg_score) }}</td>
+                        <td>{{ "%.2f"|format(data.avg_wpm) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Top Performers -->
+    <div class="dashboard-section">
+        <div class="section-header">
+            <div class="section-title">top performers</div>
+        </div>
+        <div class="top-players-list">
+            {% for mode, players in top_players.items() %}
+            <div class="player-mode-group">
+                <div class="mode-label">{{ mode }}</div>
+                {% if players %}
+                <ol class="players-ol">
+                    {% for name, score in players %}
+                    <li class="player-row">
+                        <span class="player-rank">{{ loop.index }}</span>
+                        <span class="player-name">{{ name }}</span>
+                        <span class="player-score">{{ score }}</span>
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                <div class="no-data">no data</div>
+                {% endif %}
             </div>
-            <div class="top-players-list">
-                {% for mode, players in top_players.items() %}
-                <div class="player-mode-group">
-                    <div class="mode-label">{{ mode }}</div>
-                    {% if players %}
-                    <ol class="players-ol">
-                        {% for name, score in players %}
-                        <li class="player-row">
-                            <span class="player-rank">{{ loop.index }}</span>
-                            <span class="player-name">{{ name }}</span>
-                            <span class="player-score">{{ score }}</span>
-                        </li>
-                        {% endfor %}
-                    </ol>
-                    {% else %}
-                    <div class="no-data">no data</div>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
+            {% endfor %}
         </div>
     </div>
     
@@ -212,26 +209,7 @@
         font-weight: 400;
     }
     
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);
-        gap: 3rem;
-        margin-bottom: 3rem;
-        align-items: start;
-    }
-    
-    @media (max-width: 900px) {
-        .dashboard-grid {
-            grid-template-columns: 1fr;
-            gap: 2rem;
-        }
-    }
-    
-    .dashboard-column {
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-    }
+
     
     .dashboard-section {
         margin-bottom: 3rem;

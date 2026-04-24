@@ -2,3 +2,5 @@ __pycache__/
 train_model.py
 project-plan.md
 instance/app.db
+test_model.py
+classifier/
